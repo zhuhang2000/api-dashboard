@@ -1,17 +1,9 @@
 const state = {
-  settings: null,
-  reports: [],
-  timer: null,
-  oauthTimer: null
+  reports: []
 };
 
 const els = {
-  cpaBaseUrl: document.querySelector("#cpa-base-url"),
-  managementKey: document.querySelector("#management-key"),
-  refreshInterval: document.querySelector("#refresh-interval"),
-  saveSettings: document.querySelector("#save-settings"),
   refreshButton: document.querySelector("#refresh-button"),
-  oauthButton: document.querySelector("#oauth-button"),
   lastRefresh: document.querySelector("#last-refresh"),
   statusLine: document.querySelector("#status-line"),
   cardsGrid: document.querySelector("#cards-grid"),
@@ -157,74 +149,6 @@ function renderCards(accounts) {
   }
 }
 
-function scheduleRefresh() {
-  if (state.timer) window.clearInterval(state.timer);
-  state.timer = null;
-  const seconds = Number(els.refreshInterval.value || 0);
-  if (seconds > 0) {
-    state.timer = window.setInterval(() => refreshQuotas({ silent: true }), seconds * 1000);
-  }
-}
-
-async function loadSettings() {
-  state.settings = await api("/api/settings");
-  els.cpaBaseUrl.value = state.settings.cpaBaseUrl || "";
-  els.refreshInterval.value = String(state.settings.refreshIntervalSeconds || 0);
-  els.managementKey.placeholder = state.settings.managementKeySet ? "已保存，留空则保持不变" : "请输入管理密钥";
-  scheduleRefresh();
-}
-
-async function saveSettings() {
-  els.saveSettings.disabled = true;
-  setStatus("正在保存配置...");
-  try {
-    const key = els.managementKey.value.trim();
-    const payload = {
-      cpaBaseUrl: els.cpaBaseUrl.value.trim(),
-      refreshIntervalSeconds: Number(els.refreshInterval.value || 0),
-      managementKey: key ? key : "__KEEP__"
-    };
-    state.settings = await api("/api/settings", {
-      method: "POST",
-      body: JSON.stringify(payload)
-    });
-    els.managementKey.value = "";
-    els.managementKey.placeholder = state.settings.managementKeySet ? "已保存，留空则保持不变" : "请输入管理密钥";
-    scheduleRefresh();
-    setStatus("配置已保存");
-  } catch (error) {
-    setStatus(error.message, "error");
-  } finally {
-    els.saveSettings.disabled = false;
-  }
-}
-
-async function ensureManagementSettings() {
-  const typedKey = els.managementKey.value.trim();
-  if (state.settings?.managementKeySet && !typedKey) return true;
-
-  if (!typedKey) {
-    setStatus("请先填写并保存 CLIProxyAPI 的 Management Key", "error");
-    els.managementKey.focus();
-    return false;
-  }
-
-  setStatus("正在保存管理密钥...");
-  const payload = {
-    cpaBaseUrl: els.cpaBaseUrl.value.trim(),
-    refreshIntervalSeconds: Number(els.refreshInterval.value || 0),
-    managementKey: typedKey
-  };
-  state.settings = await api("/api/settings", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
-  els.managementKey.value = "";
-  els.managementKey.placeholder = state.settings.managementKeySet ? "已保存，留空则保持不变" : "请输入管理密钥";
-  scheduleRefresh();
-  return true;
-}
-
 async function refreshQuotas(options = {}) {
   els.refreshButton.disabled = true;
   if (!options.silent) setStatus("正在刷新额度...");
@@ -243,70 +167,6 @@ async function refreshQuotas(options = {}) {
   }
 }
 
-function pollOAuth(stateId) {
-  if (state.oauthTimer) window.clearInterval(state.oauthTimer);
-  state.oauthTimer = window.setInterval(async () => {
-    try {
-      const payload = await api(`/api/oauth/status?state=${encodeURIComponent(stateId)}`);
-      if (payload.status === "wait") {
-        setStatus("OAuth 授权等待中...");
-        return;
-      }
-      window.clearInterval(state.oauthTimer);
-      state.oauthTimer = null;
-      if (payload.status === "ok") {
-        setStatus("OAuth 授权完成");
-        await refreshQuotas();
-      } else {
-        setStatus(payload.error || "OAuth 授权失败", "error");
-      }
-    } catch (error) {
-      window.clearInterval(state.oauthTimer);
-      state.oauthTimer = null;
-      setStatus(error.message, "error");
-    }
-  }, 1800);
-}
-
-async function startOAuth() {
-  els.oauthButton.disabled = true;
-  setStatus("正在创建 OAuth 授权...");
-  let oauthWindow = null;
-  try {
-    oauthWindow = window.open("about:blank", "_blank");
-    if (oauthWindow) {
-      oauthWindow.document.title = "Codex OAuth";
-      oauthWindow.document.body.innerHTML = "<p style=\"font-family: system-ui; padding: 24px;\">正在打开 Codex OAuth...</p>";
-    }
-
-    const ready = await ensureManagementSettings();
-    if (!ready) {
-      if (oauthWindow && !oauthWindow.closed) oauthWindow.close();
-      return;
-    }
-
-    const payload = await api("/api/oauth/codex", { method: "POST" });
-    if (!payload.url) throw new Error("OAuth URL missing");
-    if (oauthWindow) {
-      oauthWindow.location.href = payload.url;
-    } else {
-      setStatus("授权链接已生成，但浏览器拦截了弹窗，请允许弹窗后重试", "error");
-      return;
-    }
-    if (payload.state) pollOAuth(payload.state);
-    setStatus("OAuth 页面已打开");
-  } catch (error) {
-    if (oauthWindow && !oauthWindow.closed) oauthWindow.close();
-    setStatus(error.message, "error");
-  } finally {
-    els.oauthButton.disabled = false;
-  }
-}
-
-els.saveSettings.addEventListener("click", saveSettings);
 els.refreshButton.addEventListener("click", () => refreshQuotas());
-els.oauthButton.addEventListener("click", startOAuth);
-els.refreshInterval.addEventListener("change", scheduleRefresh);
 
-await loadSettings().catch((error) => setStatus(error.message, "error"));
 await refreshQuotas().catch(() => {});

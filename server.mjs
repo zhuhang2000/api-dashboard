@@ -115,9 +115,7 @@ async function saveConfig(next) {
 
 function publicConfig(config) {
   return {
-    cpaBaseUrl: config.cpaBaseUrl,
-    managementKeySet: Boolean(config.managementKey),
-    refreshIntervalSeconds: config.refreshIntervalSeconds
+    managementKeySet: Boolean(config.managementKey)
   };
 }
 
