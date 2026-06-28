@@ -1,5 +1,5 @@
 import http from "node:http";
-import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { createReadStream, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -99,26 +99,6 @@ async function loadConfig() {
   return config;
 }
 
-async function saveConfig(next) {
-  await mkdir(dataDir, { recursive: true });
-  const current = await loadConfig();
-  const config = {
-    cpaBaseUrl: cleanBaseUrl(next.cpaBaseUrl ?? current.cpaBaseUrl),
-    managementKey: Object.prototype.hasOwnProperty.call(next, "managementKey")
-      ? String(next.managementKey || "").trim()
-      : current.managementKey,
-    refreshIntervalSeconds: Number(next.refreshIntervalSeconds ?? current.refreshIntervalSeconds ?? 0)
-  };
-  await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
-  return config;
-}
-
-function publicConfig(config) {
-  return {
-    managementKeySet: Boolean(config.managementKey)
-  };
-}
-
 function jsonResponse(res, statusCode, payload) {
   const body = JSON.stringify(payload);
   res.writeHead(statusCode, {
@@ -131,15 +111,6 @@ function jsonResponse(res, statusCode, payload) {
 function textResponse(res, statusCode, body) {
   res.writeHead(statusCode, { "Content-Type": "text/plain; charset=utf-8" });
   res.end(body);
-}
-
-async function readJsonBody(req) {
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  if (chunks.length === 0) return {};
-  const raw = Buffer.concat(chunks).toString("utf8").trim();
-  if (!raw) return {};
-  return JSON.parse(raw);
 }
 
 function requireManagementKey(config) {
@@ -186,12 +157,12 @@ async function cpaRequest(config, apiPath, options = {}) {
     return body || {};
   } catch (error) {
     if (error.name === "AbortError") {
-      const next = new Error(`CLIProxyAPI request timed out: ${url}`);
+      const next = new Error("quota service timed out");
       next.statusCode = 504;
       throw next;
     }
     if (error instanceof TypeError) {
-      const next = new Error(`cannot reach CLIProxyAPI at ${config.cpaBaseUrl}`);
+      const next = new Error("quota service unavailable");
       next.statusCode = 502;
       next.details = { cause: error.message };
       throw next;
@@ -224,18 +195,6 @@ function pickString(...values) {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) return value.trim();
     if (typeof value === "number") return String(value);
-  }
-  return "";
-}
-
-function pickNestedString(source, ...paths) {
-  for (const path of paths) {
-    let value = source;
-    for (const key of path) {
-      value = value?.[key];
-    }
-    const picked = pickString(value);
-    if (picked) return picked;
   }
   return "";
 }
@@ -442,6 +401,16 @@ function deriveAccountState(account, quota, error) {
   return "ready";
 }
 
+function publicQuotaReport(report) {
+  return {
+    provider: "Codex",
+    planType: report.planType || "CODEX",
+    quota: report.quota || { windows: [] },
+    dashboardStatus: report.dashboardStatus || "unknown",
+    error: report.error ? "quota refresh failed" : ""
+  };
+}
+
 async function refreshQuotas(config) {
   const accounts = await listCodexAccounts(config);
   const reports = await Promise.all(accounts.map(async (account) => {
@@ -466,7 +435,7 @@ async function refreshQuotas(config) {
   }));
   return {
     refreshedAt: new Date().toISOString(),
-    accounts: reports,
+    accounts: reports.map(publicQuotaReport),
     summary: summarizeReports(reports)
   };
 }
@@ -488,72 +457,10 @@ function summarizeReports(reports) {
   return summary;
 }
 
-async function startCodexOAuth(config) {
-  const payload = await cpaRequest(config, "/v0/management/codex-auth-url?is_webui=1");
-  const url = pickNestedString(
-    payload,
-    ["url"],
-    ["auth_url"],
-    ["authUrl"],
-    ["oauth_url"],
-    ["oauthUrl"],
-    ["data", "url"],
-    ["data", "auth_url"],
-    ["data", "authUrl"],
-    ["data", "oauth_url"],
-    ["data", "oauthUrl"]
-  );
-  const state = pickNestedString(
-    payload,
-    ["state"],
-    ["data", "state"]
-  );
-  return {
-    status: payload.status || "ok",
-    url,
-    state,
-    raw: url ? undefined : payload
-  };
-}
-
-async function getOAuthStatus(config, state) {
-  const query = encodeURIComponent(String(state || ""));
-  return cpaRequest(config, `/v0/management/get-auth-status?state=${query}`);
-}
-
 async function handleApi(req, res, pathname) {
   const config = await loadConfig();
-  if (req.method === "GET" && pathname === "/api/settings") {
-    return jsonResponse(res, 200, publicConfig(config));
-  }
-  if (req.method === "POST" && pathname === "/api/settings") {
-    const body = await readJsonBody(req);
-    const next = {
-      cpaBaseUrl: body.cpaBaseUrl,
-      refreshIntervalSeconds: body.refreshIntervalSeconds
-    };
-    if (Object.prototype.hasOwnProperty.call(body, "managementKey") && body.managementKey !== "__KEEP__") {
-      next.managementKey = body.managementKey;
-    }
-    const saved = await saveConfig(next);
-    return jsonResponse(res, 200, publicConfig(saved));
-  }
-  if (req.method === "GET" && pathname === "/api/accounts") {
-    const accounts = await listCodexAccounts(config);
-    return jsonResponse(res, 200, { accounts });
-  }
   if (req.method === "POST" && pathname === "/api/quotas/refresh") {
     const payload = await refreshQuotas(config);
-    return jsonResponse(res, 200, payload);
-  }
-  if (req.method === "POST" && pathname === "/api/oauth/codex") {
-    const payload = await startCodexOAuth(config);
-    return jsonResponse(res, 200, payload);
-  }
-  if (req.method === "GET" && pathname === "/api/oauth/status") {
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    const state = url.searchParams.get("state") || "";
-    const payload = await getOAuthStatus(config, state);
     return jsonResponse(res, 200, payload);
   }
   return jsonResponse(res, 404, { error: "not found" });
