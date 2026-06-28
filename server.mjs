@@ -45,9 +45,9 @@ function loadEnvFile() {
 
 loadEnvFile();
 
-const PORT = Number(process.env.PORT || process.env.DASHBOARD_PORT || 3456);
-const HOST = process.env.HOST || process.env.DASHBOARD_HOST || "127.0.0.1";
-const DEFAULT_CPA_BASE_URL = "http://127.0.0.1:8317";
+const PORT = Number(process.env.PORT);
+const HOST = process.env.HOST;
+const DEFAULT_CPA_BASE_URL = process.env.CPA_BASE_URL;
 const WHAM_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 const WINDOW_5H_SECONDS = 5 * 60 * 60;
 const WINDOW_7D_SECONDS = 7 * 24 * 60 * 60;
@@ -83,7 +83,7 @@ async function loadConfig() {
     if (error.code !== "ENOENT") throw error;
   }
 
-  const envCpaBaseUrl = process.env.CPA_BASE_URL || process.env.cpa_base_url;
+  const envCpaBaseUrl = process.env.CPA_BASE_URL;
   const envManagementKey = process.env.MANAGEMENT_KEY ||
     process.env.management_key ||
     process.env.MANAGEMENTKEY ||
