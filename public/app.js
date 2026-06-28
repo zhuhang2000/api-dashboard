@@ -64,14 +64,6 @@ function percentClass(value) {
   return "";
 }
 
-function truncateMiddle(value, max = 42) {
-  const text = String(value || "");
-  if (text.length <= max) return text;
-  const left = Math.ceil((max - 3) / 2);
-  const right = Math.floor((max - 3) / 2);
-  return `${text.slice(0, left)}...${text.slice(text.length - right)}`;
-}
-
 function quotaIcon(label) {
   if (label === "Weekly") {
     return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/></svg>`;
@@ -121,20 +113,11 @@ function renderCards(accounts) {
   for (const account of accounts) {
     const node = els.template.content.firstElementChild.cloneNode(true);
     node.classList.add(account.dashboardStatus || "unknown");
-    const name = account.email || account.name || "unknown";
-    node.querySelector("h2").textContent = truncateMiddle(name, 34);
+    node.querySelector("h2").textContent = account.provider;
 
     const plan = node.querySelector(".plan-pill");
     plan.textContent = account.planType || "CODEX";
     if ((account.planType || "").toLowerCase() === "free") plan.classList.add("free");
-
-    node.querySelector(".account-id").textContent = account.accountId
-      ? `用户 ID: ${truncateMiddle(account.accountId, 56)}`
-      : "用户 ID: -";
-
-    const statusMessage = node.querySelector(".status-message");
-    const statusBits = [account.status, account.statusMessage].filter(Boolean);
-    statusMessage.textContent = statusBits.length ? statusBits.join(" | ") : "状态: -";
 
     const windows = account.quota?.windows || [];
     const stack = node.querySelector(".quota-stack");
@@ -143,7 +126,7 @@ function renderCards(accounts) {
       : `<div class="meta-line">未获取到 5h / Weekly 数据</div>`;
 
     const errorBox = node.querySelector(".error-box");
-    errorBox.textContent = account.error || "";
+    errorBox.textContent = account.error ? "额度读取失败" : "";
 
     els.cardsGrid.append(node);
   }
