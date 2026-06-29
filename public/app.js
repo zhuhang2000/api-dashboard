@@ -76,19 +76,25 @@ function quotaRow(window) {
   const cls = percentClass(remaining);
   const resetAt = window.resetAt ? new Date(window.resetAt) : null;
   const resetText = resetAt
-    ? `${formatDuration(resetAt.getTime() - Date.now())} (${formatDateTime(resetAt)})`
+    ? formatDateTime(resetAt)
     : "-";
   const width = Math.max(0, Math.min(100, remaining));
+  
+  // Translate labels to match Image 2
+  const displayLabel = window.label === "5h" ? "5 小时限额" : (window.label === "Weekly" ? "周限额" : window.label);
+  
   return `
     <div class="quota-row">
       <div class="quota-heading">
-        <div class="quota-label">${quotaIcon(window.label)}<span>${window.label}</span></div>
-        <div class="quota-percent ${cls}">${remaining}%</div>
+        <div class="quota-label"><span>${displayLabel}</span></div>
+        <div class="quota-value-group">
+          <span class="quota-percent ${cls}">${remaining}%</span>
+          <span class="quota-reset">${resetText}</span>
+        </div>
       </div>
       <div class="progress-track">
         <div class="progress-fill ${cls}" style="width: ${width}%"></div>
       </div>
-      <div class="quota-reset">${resetText}</div>
     </div>
   `;
 }
@@ -98,6 +104,11 @@ function renderSummary(summary = {}) {
   els.summaryReady.textContent = summary.ready ?? 0;
   els.summaryLow.textContent = summary.low ?? 0;
   els.summaryError.textContent = (summary.error ?? 0) + (summary.exhausted ?? 0);
+  
+  const titleBadge = document.querySelector("#title-badge");
+  if (titleBadge) {
+    titleBadge.textContent = summary.total ?? 0;
+  }
 }
 
 function renderCards(accounts) {
@@ -116,8 +127,10 @@ function renderCards(accounts) {
     node.querySelector("h2").textContent = account.provider;
 
     const plan = node.querySelector(".plan-pill");
-    plan.textContent = account.planType || "CODEX";
-    if ((account.planType || "").toLowerCase() === "free") plan.classList.add("free");
+    const rawPlan = account.planType || "CODEX";
+    const displayPlan = rawPlan.charAt(0).toUpperCase() + rawPlan.slice(1).toLowerCase();
+    plan.textContent = `套餐 ${displayPlan}`;
+    if (rawPlan.toLowerCase() === "free") plan.classList.add("free");
 
     const windows = account.quota?.windows || [];
     const stack = node.querySelector(".quota-stack");
@@ -127,6 +140,11 @@ function renderCards(accounts) {
 
     const errorBox = node.querySelector(".error-box");
     errorBox.textContent = account.error ? "额度读取失败" : "";
+
+    const refreshBtn = node.querySelector(".refresh-btn");
+    if (refreshBtn) {
+      refreshBtn.addEventListener("click", () => refreshQuotas());
+    }
 
     els.cardsGrid.append(node);
   }
