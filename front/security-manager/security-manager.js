@@ -143,11 +143,11 @@ class SecurityManager {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      if (response.status === 401) {
+      if (data.code === "TOKEN_EXPIRED") {
         this.token = "";
         sessionStorage.removeItem(TOKEN_STORAGE_KEY);
         this.setView("dashboard");
-        this.openAuthModal("登录已过期，请重新输入管理密码");
+        this.openAuthModal(data.error || "登录已过期，请重新输入管理密码");
       }
       throw new Error(data.error || `HTTP ${response.status}`);
     }

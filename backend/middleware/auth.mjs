@@ -7,8 +7,9 @@ export function verifyAdminAuth(req) {
   const expectedPassword = getAdminPassword();
 
   if (!expectedPassword || !token || token !== expectedPassword) {
-    const error = new Error("未授权访问，密码错误或已失效");
+    const error = new Error("未授权访问，登录已失效");
     error.statusCode = 401;
+    error.code = "TOKEN_EXPIRED";
     throw error;
   }
 }

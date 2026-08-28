@@ -18,6 +18,7 @@ const server = http.createServer(async (req, res) => {
     const statusCode = error.statusCode || 500;
     jsonResponse(res, statusCode, {
       error: error.message || "server error",
+      code: error.code || undefined,
       details: error.details || undefined
     });
   }

@@ -12,6 +12,11 @@ import {
   executeIpStats,
   getLatestIpStats
 } from "../services/ip-analyzer.mjs";
+import {
+  getClientIp,
+  recordLoginFailure,
+  recordLoginSuccess
+} from "../services/login-guard.mjs";
 
 export async function handleApi(req, res, pathname, config) {
   // Codex 额度刷新
@@ -22,13 +27,29 @@ export async function handleApi(req, res, pathname, config) {
 
   // 管理员密码验证
   if (req.method === "POST" && pathname === "/api/admin/verify") {
+    const clientIp = getClientIp(req);
     const body = await readJsonBody(req);
     const inputPassword = String(body?.password || "").trim();
     const adminPassword = getAdminPassword();
 
     if (!adminPassword || inputPassword !== adminPassword) {
-      return jsonResponse(res, 401, { error: "管理密码错误" });
+      const guard = await recordLoginFailure(clientIp);
+      if (guard.banned) {
+        return jsonResponse(res, 403, {
+          error: `密码连续错误已达 5 次，您的 IP (${clientIp}) 已被安全系统自动封禁。`,
+          code: "IP_BANNED",
+          banned: true,
+          ip: clientIp
+        });
+      }
+      return jsonResponse(res, 401, {
+        error: `管理密码错误，剩余尝试次数：${guard.remaining} 次`,
+        code: "INVALID_PASSWORD",
+        remaining: guard.remaining
+      });
     }
+
+    recordLoginSuccess(clientIp);
     return jsonResponse(res, 200, { success: true, message: "验证成功" });
   }
 
