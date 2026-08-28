@@ -3,23 +3,34 @@
    Inherits base tokens, typography, and button styles from /styles.css
    ========================================================================== */
 
-.security-section {
-  margin-top: 48px;
-  padding-top: 32px;
-  border-top: 1px solid var(--border);
+.security-wrapper {
+  width: 100%;
 }
 
-.security-topbar {
+.security-page {
+  animation: secPageFade 0.25s ease-out;
+}
+
+@keyframes secPageFade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.security-title-group {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  margin-bottom: 20px;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .security-title-group h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
   line-height: 1.2;
   color: #111827;
@@ -35,9 +46,27 @@
 }
 
 .security-title-group .subline {
-  margin-top: 6px;
+  margin-top: 2px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.back-btn {
+  align-self: flex-start;
+  margin-bottom: 2px;
+  padding: 4px 10px;
+  background: #ffffff;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.back-btn svg {
+  color: #6b7280;
+}
+
+.back-btn:hover {
+  color: #111827;
+  border-color: #d1d5db;
 }
 
 .security-top-actions {
@@ -46,60 +75,120 @@
   align-items: center;
 }
 
-/* Lock View */
-.security-lock-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 40px 24px;
-  box-shadow: var(--shadow);
-  text-align: center;
-  max-width: 480px;
-  margin: 16px auto 0;
+/* ==========================================================================
+   Modal Dialog Styles (弹窗鉴权)
+   ========================================================================== */
+
+.sec-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 20px;
+  animation: secModalBackdropFade 0.2s ease-out;
 }
 
-.lock-icon-circle {
-  width: 52px;
-  height: 52px;
+@keyframes secModalBackdropFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.sec-modal-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px 28px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  text-align: center;
+  max-width: 420px;
+  width: 100%;
+  position: relative;
+  animation: secModalCardZoom 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes secModalCardZoom {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-close-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.modal-close-btn:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.sec-modal-header .lock-icon-circle {
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: #eef2ff;
   color: #4f46e5;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
-.lock-icon-circle svg {
-  width: 26px;
-  height: 26px;
+.sec-modal-header .lock-icon-circle svg {
+  width: 24px;
+  height: 24px;
 }
 
-.security-lock-card h3 {
-  margin: 0 0 8px;
+.sec-modal-header h3 {
+  margin: 0 0 6px;
   font-size: 16px;
   font-weight: 600;
   color: #111827;
 }
 
-.security-lock-card p {
-  margin: 0 0 24px;
+.sec-modal-header p {
+  margin: 0 0 20px;
   font-size: 13px;
   color: var(--muted);
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 .lock-form {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-width: 320px;
-  margin: 0 auto;
 }
 
 .sec-input {
   width: 100%;
-  height: 38px;
+  height: 40px;
   padding: 0 14px;
   font-size: 13px;
   border: 1px solid var(--border);
@@ -116,7 +205,6 @@
 }
 
 .lock-error {
-  margin-top: 14px;
   padding: 8px 12px;
   border-radius: 6px;
   background: rgba(239, 68, 68, 0.08);
@@ -124,6 +212,26 @@
   color: #b91c1c;
   font-size: 12px;
   text-align: center;
+}
+
+.modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.modal-cancel-btn {
+  flex: 1;
+  justify-content: center;
+  height: 38px;
+}
+
+.modal-submit-btn {
+  flex: 2;
+  justify-content: center;
+  height: 38px;
 }
 
 /* Stat modifiers */
@@ -476,7 +584,6 @@
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 

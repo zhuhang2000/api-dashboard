@@ -9,6 +9,7 @@ const HTML_TEMPLATE_PATH = "/security-manager/security-manager.html";
 class SecurityManager {
   constructor() {
     this.container = null;
+    this.dashboardContainer = null;
     this.templates = null;
     this.token = sessionStorage.getItem(TOKEN_STORAGE_KEY) || "";
     this.state = {
@@ -21,7 +22,6 @@ class SecurityManager {
       bannedIps: [],
       updatedAt: null,
       loading: false,
-      lockError: "",
       ipStats: null,
       statsLoading: false
     };
@@ -31,15 +31,18 @@ class SecurityManager {
 
   async init() {
     this.container = document.querySelector("#security-manager");
+    this.dashboardContainer = document.querySelector("#dashboard");
     if (!this.container) return;
 
     try {
       await this.loadTemplates();
-      if (this.token) {
-        await this.fetchStatus();
-        await this.fetchIpStats(false);
+      this.bindGlobalEvents();
+
+      // 根据 URL Hash 或当前状态决定初始视图
+      if (window.location.hash === "#security" && this.token) {
+        this.showSecurityPage();
       } else {
-        this.renderLockView();
+        this.showDashboardPage();
       }
     } catch (error) {
       console.error("Failed to initialize security manager:", error);
@@ -55,11 +58,36 @@ class SecurityManager {
     const doc = new DOMParser().parseFromString(html, "text/html");
 
     this.templates = {
-      lock: doc.querySelector("#sec-lock-template"),
+      modal: doc.querySelector("#sec-modal-template"),
       dashboard: doc.querySelector("#sec-dashboard-template"),
       row: doc.querySelector("#sec-ip-row-template"),
       statsRow: doc.querySelector("#sec-stats-row-template")
     };
+  }
+
+  bindGlobalEvents() {
+    // 监听来自 Codex 看板顶部控制台按钮的事件
+    window.addEventListener("open-security-console", () => {
+      if (this.token) {
+        this.showSecurityPage();
+      } else {
+        this.openAuthModal();
+      }
+    });
+
+    // 监听浏览器路由 Hash 变化
+    window.addEventListener("hashchange", () => {
+      if (window.location.hash === "#security") {
+        if (this.token) {
+          this.showSecurityPage();
+        } else {
+          this.showDashboardPage();
+          this.openAuthModal();
+        }
+      } else {
+        this.showDashboardPage();
+      }
+    });
   }
 
   showToast(message, type = "success") {
@@ -97,34 +125,104 @@ class SecurityManager {
       if (response.status === 401) {
         this.token = "";
         sessionStorage.removeItem(TOKEN_STORAGE_KEY);
-        this.renderLockView();
+        this.showDashboardPage();
+        this.openAuthModal("登录已过期，请重新输入管理密码");
       }
       throw new Error(data.error || `HTTP ${response.status}`);
     }
     return data;
   }
 
-  async verifyPassword(password) {
-    if (!password) {
-      this.state.lockError = "请输入管理密码";
-      this.renderLockView();
-      return;
+  openAuthModal(initialError = "") {
+    this.closeAuthModal();
+
+    if (!this.templates?.modal) return;
+    const modalNode = this.templates.modal.content.cloneNode(true);
+    document.body.appendChild(modalNode);
+
+    const modalEl = document.querySelector("#sec-auth-modal");
+    const form = modalEl?.querySelector("#sec-modal-form");
+    const input = modalEl?.querySelector("#sec-modal-password-input");
+    const errorEl = modalEl?.querySelector("#sec-modal-error");
+    const closeBtn = modalEl?.querySelector("#sec-modal-close");
+    const cancelBtn = modalEl?.querySelector("#sec-modal-cancel");
+
+    if (initialError && errorEl) {
+      errorEl.textContent = initialError;
+      errorEl.style.display = "block";
     }
-    try {
-      await this.request("/api/admin/verify", {
-        method: "POST",
-        body: JSON.stringify({ password })
-      });
-      this.token = password;
-      sessionStorage.setItem(TOKEN_STORAGE_KEY, password);
-      this.state.lockError = "";
-      this.showToast("解锁成功", "success");
-      await this.fetchStatus();
-      await this.fetchIpStats(false);
-    } catch (error) {
-      this.state.lockError = error.message || "密码错误";
-      this.renderLockView();
+
+    input?.focus();
+
+    closeBtn?.addEventListener("click", () => this.closeAuthModal());
+    cancelBtn?.addEventListener("click", () => this.closeAuthModal());
+
+    modalEl?.addEventListener("click", (e) => {
+      if (e.target === modalEl) this.closeAuthModal();
+    });
+
+    form?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const password = String(input?.value || "").trim();
+      if (!password) return;
+
+      const submitBtn = form.querySelector("#sec-modal-submit");
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "验证中...";
+      }
+
+      try {
+        await this.request("/api/admin/verify", {
+          method: "POST",
+          body: JSON.stringify({ password })
+        });
+        this.token = password;
+        sessionStorage.setItem(TOKEN_STORAGE_KEY, password);
+        this.closeAuthModal();
+        this.showToast("解锁成功，已进入控制台", "success");
+        this.showSecurityPage();
+      } catch (error) {
+        if (errorEl) {
+          errorEl.textContent = error.message || "密码错误";
+          errorEl.style.display = "block";
+        }
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "解锁并进入";
+        }
+      }
+    });
+  }
+
+  closeAuthModal() {
+    const existing = document.querySelector("#sec-auth-modal");
+    if (existing) existing.remove();
+  }
+
+  showDashboardPage() {
+    if (this.dashboardContainer) this.dashboardContainer.style.display = "block";
+    if (this.container) {
+      this.container.style.display = "none";
+      this.container.innerHTML = "";
     }
+    if (window.location.hash === "#security") {
+      history.replaceState(null, "", window.location.pathname);
+    }
+  }
+
+  showSecurityPage() {
+    if (this.dashboardContainer) this.dashboardContainer.style.display = "none";
+    if (this.container) {
+      this.container.style.display = "block";
+    }
+    if (window.location.hash !== "#security") {
+      window.location.hash = "#security";
+    }
+
+    this.renderSecurityView();
+    this.fetchStatus();
+    this.fetchIpStats(false);
   }
 
   async fetchStatus() {
@@ -137,11 +235,11 @@ class SecurityManager {
         ...data,
         loading: false
       };
-      this.renderDashboardView();
+      this.updateStatusView();
     } catch (error) {
       this.state.loading = false;
       this.showToast(error.message, "error");
-      this.renderDashboardView();
+      this.updateStatusView();
     }
   }
 
@@ -195,7 +293,8 @@ class SecurityManager {
         ...(result.status || {})
       };
       this.showToast(`已成功封禁 IP: ${target}`, "success");
-      this.renderDashboardView();
+      this.updateStatusView();
+      this.renderIpStatsSection();
     } catch (error) {
       this.showToast(error.message || "封禁失败", "error");
     }
@@ -215,7 +314,8 @@ class SecurityManager {
         ...(result.status || {})
       };
       this.showToast(`已成功解封 IP: ${target}`, "success");
-      this.renderDashboardView();
+      this.updateStatusView();
+      this.renderIpStatsSection();
     } catch (error) {
       this.showToast(error.message || "解封失败", "error");
     }
@@ -235,7 +335,8 @@ class SecurityManager {
         ...(result.status || {})
       };
       this.showToast("已成功解封所有 IP", "success");
-      this.renderDashboardView();
+      this.updateStatusView();
+      this.renderIpStatsSection();
     } catch (error) {
       this.showToast(error.message || "一键解封失败", "error");
     }
@@ -244,9 +345,8 @@ class SecurityManager {
   lock() {
     this.token = "";
     sessionStorage.removeItem(TOKEN_STORAGE_KEY);
-    this.state.lockError = "";
-    this.showToast("管理模块已锁定", "success");
-    this.renderLockView();
+    this.showToast("控制台已锁定", "success");
+    this.showDashboardPage();
   }
 
   formatTime(isoString) {
@@ -261,46 +361,48 @@ class SecurityManager {
     return `${month}/${day} ${hour}:${minute}:${second}`;
   }
 
-  renderLockView() {
-    if (!this.templates?.lock) return;
+  renderSecurityView() {
+    if (!this.templates?.dashboard) return;
 
     this.container.innerHTML = "";
-    const section = document.createElement("section");
-    section.className = "security-section";
+    const dashboardNode = this.templates.dashboard.content.cloneNode(true);
+    this.container.appendChild(dashboardNode);
 
-    const lockNode = this.templates.lock.content.cloneNode(true);
-    section.appendChild(lockNode);
-    this.container.appendChild(section);
-
-    const form = this.container.querySelector("#sec-lock-form");
-    const input = this.container.querySelector("#sec-password-input");
-    const errorEl = this.container.querySelector("#sec-lock-error");
-
-    if (this.state.lockError && errorEl) {
-      errorEl.textContent = this.state.lockError;
-      errorEl.style.display = "block";
-    }
-
-    form?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      this.verifyPassword(input.value);
+    // 绑定返回与顶部操作事件
+    this.container.querySelector("#sec-back-btn")?.addEventListener("click", () => {
+      this.showDashboardPage();
     });
+    this.container.querySelector("#sec-refresh-btn")?.addEventListener("click", () => {
+      this.fetchStatus();
+    });
+    this.container.querySelector("#sec-lock-btn")?.addEventListener("click", () => {
+      this.lock();
+    });
+    this.container.querySelector("#sec-unban-all-btn")?.addEventListener("click", () => {
+      this.unbanAll();
+    });
+
+    const banForm = this.container.querySelector("#sec-ban-form");
+    const banInput = this.container.querySelector("#sec-ban-ip-input");
+    banForm?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      this.banIp(banInput?.value);
+      if (banInput) banInput.value = "";
+    });
+
+    // 绑定 IP 频次统计执行事件
+    const runStatsBtn = this.container.querySelector("#sec-run-stats-btn");
+    runStatsBtn?.addEventListener("click", () => this.fetchIpStats(true));
+
+    this.updateStatusView();
+    this.renderIpStatsSection();
   }
 
-  renderDashboardView() {
-    if (!this.templates?.dashboard) return;
+  updateStatusView() {
+    if (!this.container) return;
 
     const bannedIps = this.state.bannedIps || [];
 
-    this.container.innerHTML = "";
-    const section = document.createElement("section");
-    section.className = "security-section";
-
-    const dashboardNode = this.templates.dashboard.content.cloneNode(true);
-    section.appendChild(dashboardNode);
-    this.container.appendChild(section);
-
-    // 填充 Fail2ban 状态数据
     const badgeEl = this.container.querySelector("#sec-badge");
     const sublineEl = this.container.querySelector("#sec-subline");
     const statBannedEl = this.container.querySelector("#sec-stat-banned");
@@ -363,26 +465,6 @@ class SecurityManager {
         }
       }
     }
-
-    // 绑定顶部与全局操作事件
-    this.container.querySelector("#sec-refresh-btn")?.addEventListener("click", () => this.fetchStatus());
-    this.container.querySelector("#sec-lock-btn")?.addEventListener("click", () => this.lock());
-    this.container.querySelector("#sec-unban-all-btn")?.addEventListener("click", () => this.unbanAll());
-
-    const banForm = this.container.querySelector("#sec-ban-form");
-    const banInput = this.container.querySelector("#sec-ban-ip-input");
-    banForm?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      this.banIp(banInput?.value);
-      if (banInput) banInput.value = "";
-    });
-
-    // 绑定 IP 频次统计执行事件
-    const runStatsBtn = this.container.querySelector("#sec-run-stats-btn");
-    runStatsBtn?.addEventListener("click", () => this.fetchIpStats(true));
-
-    // 渲染 IP 频次统计区域
-    this.renderIpStatsSection();
   }
 
   renderIpStatsSection() {

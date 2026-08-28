@@ -48,6 +48,7 @@ class QuotaDashboard {
   bindElements() {
     this.els = {
       refreshButton: this.container.querySelector("#refresh-button"),
+      openSecurityBtn: this.container.querySelector("#open-security-btn"),
       lastRefresh: this.container.querySelector("#last-refresh"),
       statusLine: this.container.querySelector("#status-line"),
       cardsGrid: this.container.querySelector("#cards-grid"),
@@ -59,6 +60,9 @@ class QuotaDashboard {
     };
 
     this.els.refreshButton?.addEventListener("click", () => this.refreshQuotas());
+    this.els.openSecurityBtn?.addEventListener("click", () => {
+      window.dispatchEvent(new CustomEvent("open-security-console"));
+    });
   }
 
   setStatus(message, type = "") {
