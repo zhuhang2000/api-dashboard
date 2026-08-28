@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Codex 额度看板</title>
     <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/security-manager/security-manager.css">
   </head>
   <body>
     <main class="app-shell">
@@ -42,6 +43,9 @@
 
       <div class="status-line" id="status-line"></div>
       <section class="cards-grid" id="cards-grid" aria-live="polite"></section>
+
+      <!-- Fail2ban 安全管理独立组件挂载点 -->
+      <div id="security-manager"></div>
     </main>
 
     <template id="account-card-template">
@@ -65,5 +69,6 @@
     </template>
 
     <script src="/app.js" type="module"></script>
+    <script src="/security-manager/security-manager.js" type="module"></script>
   </body>
 </html>

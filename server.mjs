@@ -1,8 +1,13 @@
 import http from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { createReadStream, readFileSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { isIP } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const execFileAsync = promisify(execFile);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -457,12 +462,185 @@ function summarizeReports(reports) {
   return summary;
 }
 
+async function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let raw = "";
+    req.on("data", (chunk) => {
+      raw += chunk;
+      if (raw.length > 65536) {
+        const error = new Error("payload too large");
+        error.statusCode = 413;
+        reject(error);
+      }
+    });
+    req.on("end", () => {
+      if (!raw.trim()) return resolve({});
+      try {
+        resolve(JSON.parse(raw));
+      } catch {
+        const error = new Error("invalid json payload");
+        error.statusCode = 400;
+        reject(error);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+function getAdminPassword(config) {
+  return (
+    process.env.ADMIN_PASSWORD ||
+    process.env.admin_password ||
+    config.managementKey ||
+    process.env.MANAGEMENT_KEY ||
+    process.env.management_key ||
+    ""
+  ).trim();
+}
+
+function verifyAdminAuth(req, config) {
+  const authHeader = req.headers["authorization"] || "";
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  const token = match ? match[1].trim() : "";
+  const expectedPassword = getAdminPassword(config);
+
+  if (!expectedPassword || !token || token !== expectedPassword) {
+    const error = new Error("未授权访问，密码错误或已失效");
+    error.statusCode = 401;
+    throw error;
+  }
+}
+
+async function getFail2banStatus(jail = "cliproxy-401") {
+  try {
+    const { stdout } = await execFileAsync("fail2ban-client", ["status", jail]);
+    const currentlyFailedMatch = stdout.match(/Currently failed:\s*(\d+)/i);
+    const totalFailedMatch = stdout.match(/Total failed:\s*(\d+)/i);
+    const currentlyBannedMatch = stdout.match(/Currently banned:\s*(\d+)/i);
+    const totalBannedMatch = stdout.match(/Total banned:\s*(\d+)/i);
+    const bannedListMatch = stdout.match(/Banned IP list:\s*(.*)/i);
+
+    const bannedIps = bannedListMatch && bannedListMatch[1]
+      ? bannedListMatch[1].trim().split(/\s+/).filter(Boolean)
+      : [];
+
+    return {
+      jail,
+      active: true,
+      currentlyFailed: Number(currentlyFailedMatch?.[1] || 0),
+      totalFailed: Number(totalFailedMatch?.[1] || 0),
+      currentlyBanned: Number(currentlyBannedMatch?.[1] || bannedIps.length),
+      totalBanned: Number(totalBannedMatch?.[1] || 0),
+      bannedIps,
+      updatedAt: new Date().toISOString()
+    };
+  } catch (error) {
+    return {
+      jail,
+      active: false,
+      error: error.message || "fail2ban status unavailable",
+      currentlyFailed: 0,
+      totalFailed: 0,
+      currentlyBanned: 0,
+      totalBanned: 0,
+      bannedIps: [],
+      updatedAt: new Date().toISOString()
+    };
+  }
+}
+
+async function banFail2banIp(ip, jail = "cliproxy-401") {
+  const targetIp = String(ip || "").trim();
+  if (!isIP(targetIp)) {
+    const error = new Error("无效的 IP 地址格式 (仅支持合法 IPv4 或 IPv6)");
+    error.statusCode = 400;
+    throw error;
+  }
+  const { stdout, stderr } = await execFileAsync("fail2ban-client", ["set", jail, "banip", targetIp]);
+  return {
+    success: true,
+    ip: targetIp,
+    output: (stdout || stderr || "").trim()
+  };
+}
+
+async function unbanFail2banIp(ip, jail = "cliproxy-401") {
+  const targetIp = String(ip || "").trim();
+  if (!isIP(targetIp)) {
+    const error = new Error("无效的 IP 地址格式 (仅支持合法 IPv4 或 IPv6)");
+    error.statusCode = 400;
+    throw error;
+  }
+  const { stdout, stderr } = await execFileAsync("fail2ban-client", ["set", jail, "unbanip", targetIp]);
+  return {
+    success: true,
+    ip: targetIp,
+    output: (stdout || stderr || "").trim()
+  };
+}
+
+async function unbanAllFail2ban() {
+  const { stdout, stderr } = await execFileAsync("fail2ban-client", ["unban", "--all"]);
+  return {
+    success: true,
+    output: (stdout || stderr || "").trim()
+  };
+}
+
 async function handleApi(req, res, pathname) {
   const config = await loadConfig();
+
+  // Codex 额度刷新
   if (req.method === "POST" && pathname === "/api/quotas/refresh") {
     const payload = await refreshQuotas(config);
     return jsonResponse(res, 200, payload);
   }
+
+  // 管理员密码验证
+  if (req.method === "POST" && pathname === "/api/admin/verify") {
+    const body = await readJsonBody(req);
+    const inputPassword = String(body?.password || "").trim();
+    const adminPassword = getAdminPassword(config);
+
+    if (!adminPassword || inputPassword !== adminPassword) {
+      return jsonResponse(res, 401, { error: "管理密码错误" });
+    }
+    return jsonResponse(res, 200, { success: true, message: "验证成功" });
+  }
+
+  // 获取 Fail2ban 状态与封禁 IP 列表
+  if (req.method === "GET" && pathname === "/api/admin/fail2ban/status") {
+    verifyAdminAuth(req, config);
+    const status = await getFail2banStatus("cliproxy-401");
+    return jsonResponse(res, 200, status);
+  }
+
+  // 手动封禁 IP
+  if (req.method === "POST" && pathname === "/api/admin/fail2ban/ban") {
+    verifyAdminAuth(req, config);
+    const body = await readJsonBody(req);
+    const result = await banFail2banIp(body?.ip, "cliproxy-401");
+    const status = await getFail2banStatus("cliproxy-401");
+    return jsonResponse(res, 200, { ...result, status });
+  }
+
+  // 解封单个 IP
+  if (req.method === "POST" && pathname === "/api/admin/fail2ban/unban") {
+    verifyAdminAuth(req, config);
+    const body = await readJsonBody(req);
+    const result = await unbanFail2banIp(body?.ip, "cliproxy-401");
+    const status = await getFail2banStatus("cliproxy-401");
+    return jsonResponse(res, 200, { ...result, status });
+  }
+
+  // 一键解封所有 IP
+  if (req.method === "POST" && pathname === "/api/admin/fail2ban/unban-all") {
+    verifyAdminAuth(req, config);
+    const result = await unbanAllFail2ban();
+    const status = await getFail2banStatus("cliproxy-401");
+    return jsonResponse(res, 200, { ...result, status });
+  }
+
   return jsonResponse(res, 404, { error: "not found" });
 }
 
