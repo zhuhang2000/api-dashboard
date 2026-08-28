@@ -1,6 +1,6 @@
 /* ==========================================================================
    Fail2ban Security & IP Management Component Styles
-   Inherits base tokens, typography, and button styles from /styles.css
+   Inherits base design tokens, buttons, and reset from /styles.css
    ========================================================================== */
 
 .security-wrapper {
@@ -8,18 +8,7 @@
 }
 
 .security-page {
-  animation: secPageFade 0.25s ease-out;
-}
-
-@keyframes secPageFade {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  animation: fadeIn 0.2s ease-out;
 }
 
 .security-title-group {
@@ -32,7 +21,6 @@
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-  line-height: 1.2;
   color: #111827;
   display: flex;
   align-items: center;
@@ -45,23 +33,10 @@
   color: #4f46e5;
 }
 
-.security-title-group .subline {
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
 .back-btn {
   align-self: flex-start;
-  margin-bottom: 2px;
-  padding: 4px 10px;
-  background: #ffffff;
-  color: #4b5563;
   font-size: 12px;
-}
-
-.back-btn svg {
-  color: #6b7280;
+  color: #4b5563;
 }
 
 .back-btn:hover {
@@ -69,14 +44,8 @@
   border-color: #d1d5db;
 }
 
-.security-top-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
 /* ==========================================================================
-   Modal Dialog Styles (弹窗鉴权)
+   Modal Dialog (密码验证弹窗)
    ========================================================================== */
 
 .sec-modal-backdrop {
@@ -89,16 +58,7 @@
   justify-content: center;
   z-index: 999;
   padding: 20px;
-  animation: secModalBackdropFade 0.2s ease-out;
-}
-
-@keyframes secModalBackdropFade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  animation: fadeIn 0.18s ease-out;
 }
 
 .sec-modal-card {
@@ -111,18 +71,7 @@
   max-width: 420px;
   width: 100%;
   position: relative;
-  animation: secModalCardZoom 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes secModalCardZoom {
-  from {
-    opacity: 0;
-    transform: scale(0.95) translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
+  animation: popIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .modal-close-btn {
@@ -134,7 +83,7 @@
   min-height: 30px;
   padding: 0;
   border-radius: 50%;
-  border: 1px solid transparent;
+  border: none;
   background: transparent;
   color: var(--muted);
   display: flex;
@@ -216,8 +165,6 @@
 
 .modal-actions {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
   gap: 10px;
   margin-top: 4px;
 }
@@ -234,19 +181,27 @@
   height: 38px;
 }
 
-/* Stat modifiers */
+/* ==========================================================================
+   Actions Bar & Card Styles
+   ========================================================================== */
+
 .summary-item.banned strong {
   color: var(--red);
 }
 
-/* Actions Card */
-.sec-actions-card {
+.sec-actions-card,
+.sec-ip-card,
+.sec-stats-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 16px 20px;
-  margin-bottom: 20px;
+  padding: 20px;
   box-shadow: var(--shadow);
+  margin-bottom: 20px;
+}
+
+.sec-actions-card {
+  padding: 16px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -289,26 +244,23 @@
   border-color: #fcd34d;
 }
 
-/* IP List Section */
-.sec-ip-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: var(--shadow);
-  margin-bottom: 24px;
-}
+/* ==========================================================================
+   IP List & Leaderboard Tables
+   ========================================================================== */
 
-.sec-ip-header {
+.sec-ip-header,
+.sec-stats-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid #f3f4f6;
 }
 
-.sec-ip-header h4 {
+.sec-ip-header h4,
+.sec-stats-title h4 {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
@@ -318,9 +270,20 @@
   gap: 6px;
 }
 
-.sec-ip-count {
+.sec-ip-count,
+.sec-stats-subline {
   font-size: 12px;
   color: var(--muted);
+}
+
+.sec-stats-subline {
+  margin-top: 4px;
+  display: block;
+}
+
+.sec-meta-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .sec-ip-table {
@@ -369,7 +332,6 @@
   background: #f3f4f6;
   padding: 4px 8px;
   border-radius: 6px;
-  letter-spacing: -0.2px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -395,70 +357,21 @@
   color: #5b21b6;
 }
 
-.ip-row-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.sec-empty-state {
-  padding: 36px 16px;
-  text-align: center;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.sec-empty-state svg {
-  width: 32px;
-  height: 32px;
-  color: var(--green);
-  margin-bottom: 8px;
-  display: inline-block;
-}
-
-/* ==========================================================================
-   IP Analyzer & Frequency Stats Styles
-   ========================================================================== */
-
-.sec-stats-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: var(--shadow);
-}
-
-.sec-stats-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.sec-stats-title h4 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #374151;
+.ip-group {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
-.sec-stats-subline {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--muted);
-  display: block;
-}
-
-.sec-meta-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+.ip-banned-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
 }
 
 .rank-badge {
@@ -490,23 +403,6 @@
   background: #ffedd5;
   color: #c2410c;
   border: 1px solid #fed7aa;
-}
-
-.ip-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.ip-banned-pill {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #fee2e2;
-  color: #dc2626;
-  border: 1px solid #fca5a5;
 }
 
 .stat-count {
@@ -544,13 +440,38 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+.ip-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .quick-ban-btn:hover:not(:disabled) {
   border-color: #ef4444;
   color: #ef4444;
   background: #fef2f2;
 }
 
-/* Toast Message */
+.sec-empty-state {
+  padding: 36px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.sec-empty-state svg {
+  width: 32px;
+  height: 32px;
+  color: var(--green);
+  margin-bottom: 8px;
+  display: inline-block;
+}
+
+/* ==========================================================================
+   Toast Notification & Keyframes
+   ========================================================================== */
+
 .sec-toast {
   position: fixed;
   bottom: 24px;
@@ -566,26 +487,25 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  animation: secFadeIn 0.25s ease-out;
+  animation: fadeIn 0.2s ease-out;
 }
 
-.sec-toast.success {
-  background: var(--green-dark);
+.sec-toast.success { background: var(--green-dark); }
+.sec-toast.error { background: #991b1b; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.sec-toast.error {
-  background: #991b1b;
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-@keyframes secFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-  }
-}
+/* ==========================================================================
+   Responsive Breakpoints
+   ========================================================================== */
 
 @media (max-width: 768px) {
   .sec-actions-card {

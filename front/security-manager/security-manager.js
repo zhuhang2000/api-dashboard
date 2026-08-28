@@ -13,15 +13,12 @@ class SecurityManager {
     this.templates = null;
     this.token = sessionStorage.getItem(TOKEN_STORAGE_KEY) || "";
     this.state = {
-      active: true,
       jail: "cliproxy-401",
       currentlyBanned: 0,
       totalBanned: 0,
-      currentlyFailed: 0,
       totalFailed: 0,
       bannedIps: [],
       updatedAt: null,
-      loading: false,
       ipStats: null,
       statsLoading: false
     };
@@ -38,11 +35,10 @@ class SecurityManager {
       await this.loadTemplates();
       this.bindGlobalEvents();
 
-      // 根据 URL Hash 或当前状态决定初始视图
       if (window.location.hash === "#security" && this.token) {
-        this.showSecurityPage();
+        this.setView("security");
       } else {
-        this.showDashboardPage();
+        this.setView("dashboard");
       }
     } catch (error) {
       console.error("Failed to initialize security manager:", error);
@@ -66,28 +62,48 @@ class SecurityManager {
   }
 
   bindGlobalEvents() {
-    // 监听来自 Codex 看板顶部控制台按钮的事件
     window.addEventListener("open-security-console", () => {
       if (this.token) {
-        this.showSecurityPage();
+        this.setView("security");
       } else {
         this.openAuthModal();
       }
     });
 
-    // 监听浏览器路由 Hash 变化
     window.addEventListener("hashchange", () => {
       if (window.location.hash === "#security") {
         if (this.token) {
-          this.showSecurityPage();
+          this.setView("security");
         } else {
-          this.showDashboardPage();
+          this.setView("dashboard");
           this.openAuthModal();
         }
       } else {
-        this.showDashboardPage();
+        this.setView("dashboard");
       }
     });
+  }
+
+  setView(viewName) {
+    const isSecurity = viewName === "security";
+    if (this.dashboardContainer) {
+      this.dashboardContainer.style.display = isSecurity ? "none" : "block";
+    }
+    if (this.container) {
+      this.container.style.display = isSecurity ? "block" : "none";
+      if (!isSecurity) this.container.innerHTML = "";
+    }
+
+    if (isSecurity) {
+      if (window.location.hash !== "#security") window.location.hash = "#security";
+      this.renderSecurityView();
+      this.fetchStatus();
+      this.fetchIpStats(false);
+    } else {
+      if (window.location.hash === "#security") {
+        history.replaceState(null, "", window.location.pathname);
+      }
+    }
   }
 
   showToast(message, type = "success") {
@@ -106,6 +122,14 @@ class SecurityManager {
     }, 3000);
   }
 
+  copyIp(ip) {
+    navigator.clipboard.writeText(ip).then(() => {
+      this.showToast(`已复制 IP: ${ip}`, "success");
+    }).catch(() => {
+      this.showToast("复制失败", "error");
+    });
+  }
+
   async request(path, options = {}) {
     const headers = {
       "Content-Type": "application/json",
@@ -115,17 +139,14 @@ class SecurityManager {
       headers["Authorization"] = `Bearer ${this.token}`;
     }
 
-    const response = await fetch(path, {
-      ...options,
-      headers
-    });
-
+    const response = await fetch(path, { ...options, headers });
     const data = await response.json().catch(() => ({}));
+
     if (!response.ok) {
       if (response.status === 401) {
         this.token = "";
         sessionStorage.removeItem(TOKEN_STORAGE_KEY);
-        this.showDashboardPage();
+        this.setView("dashboard");
         this.openAuthModal("登录已过期，请重新输入管理密码");
       }
       throw new Error(data.error || `HTTP ${response.status}`);
@@ -135,8 +156,8 @@ class SecurityManager {
 
   openAuthModal(initialError = "") {
     this.closeAuthModal();
-
     if (!this.templates?.modal) return;
+
     const modalNode = this.templates.modal.content.cloneNode(true);
     document.body.appendChild(modalNode);
 
@@ -156,7 +177,6 @@ class SecurityManager {
 
     closeBtn?.addEventListener("click", () => this.closeAuthModal());
     cancelBtn?.addEventListener("click", () => this.closeAuthModal());
-
     modalEl?.addEventListener("click", (e) => {
       if (e.target === modalEl) this.closeAuthModal();
     });
@@ -181,7 +201,7 @@ class SecurityManager {
         sessionStorage.setItem(TOKEN_STORAGE_KEY, password);
         this.closeAuthModal();
         this.showToast("解锁成功，已进入控制台", "success");
-        this.showSecurityPage();
+        this.setView("security");
       } catch (error) {
         if (errorEl) {
           errorEl.textContent = error.message || "密码错误";
@@ -200,46 +220,14 @@ class SecurityManager {
     if (existing) existing.remove();
   }
 
-  showDashboardPage() {
-    if (this.dashboardContainer) this.dashboardContainer.style.display = "block";
-    if (this.container) {
-      this.container.style.display = "none";
-      this.container.innerHTML = "";
-    }
-    if (window.location.hash === "#security") {
-      history.replaceState(null, "", window.location.pathname);
-    }
-  }
-
-  showSecurityPage() {
-    if (this.dashboardContainer) this.dashboardContainer.style.display = "none";
-    if (this.container) {
-      this.container.style.display = "block";
-    }
-    if (window.location.hash !== "#security") {
-      window.location.hash = "#security";
-    }
-
-    this.renderSecurityView();
-    this.fetchStatus();
-    this.fetchIpStats(false);
-  }
-
   async fetchStatus() {
-    this.state.loading = true;
-
     try {
       const data = await this.request("/api/admin/fail2ban/status");
-      this.state = {
-        ...this.state,
-        ...data,
-        loading: false
-      };
-      this.updateStatusView();
+      this.state = { ...this.state, ...data };
+      this.updateAllViews();
     } catch (error) {
-      this.state.loading = false;
       this.showToast(error.message, "error");
-      this.updateStatusView();
+      this.updateAllViews();
     }
   }
 
@@ -258,15 +246,11 @@ class SecurityManager {
 
       if (data && data.items) {
         this.state.ipStats = data;
-        if (run) {
-          this.showToast("IP 频次统计分析完成", "success");
-        }
+        if (run) this.showToast("IP 频次统计分析完成", "success");
       }
       this.renderIpStatsSection();
     } catch (error) {
-      if (run) {
-        this.showToast(error.message || "执行统计失败", "error");
-      }
+      if (run) this.showToast(error.message || "执行统计失败", "error");
     } finally {
       this.state.statsLoading = false;
       if (runBtn) {
@@ -278,23 +262,16 @@ class SecurityManager {
 
   async banIp(ip) {
     const target = String(ip || "").trim();
-    if (!target) {
-      this.showToast("请输入需要封禁的 IP 地址", "error");
-      return;
-    }
+    if (!target) return this.showToast("请输入需要封禁的 IP 地址", "error");
 
     try {
       const result = await this.request("/api/admin/fail2ban/ban", {
         method: "POST",
         body: JSON.stringify({ ip: target })
       });
-      this.state = {
-        ...this.state,
-        ...(result.status || {})
-      };
+      this.state = { ...this.state, ...(result.status || {}) };
       this.showToast(`已成功封禁 IP: ${target}`, "success");
-      this.updateStatusView();
-      this.renderIpStatsSection();
+      this.updateAllViews();
     } catch (error) {
       this.showToast(error.message || "封禁失败", "error");
     }
@@ -309,34 +286,22 @@ class SecurityManager {
         method: "POST",
         body: JSON.stringify({ ip: target })
       });
-      this.state = {
-        ...this.state,
-        ...(result.status || {})
-      };
+      this.state = { ...this.state, ...(result.status || {}) };
       this.showToast(`已成功解封 IP: ${target}`, "success");
-      this.updateStatusView();
-      this.renderIpStatsSection();
+      this.updateAllViews();
     } catch (error) {
       this.showToast(error.message || "解封失败", "error");
     }
   }
 
   async unbanAll() {
-    if (!confirm("⚠️ 确定要一键解封所有规则下的 IP 吗？该操作将清除所有当前的封禁拦截。")) {
-      return;
-    }
+    if (!confirm("⚠️ 确定要一键解封所有规则下的 IP 吗？该操作将清除所有当前的封禁拦截。")) return;
 
     try {
-      const result = await this.request("/api/admin/fail2ban/unban-all", {
-        method: "POST"
-      });
-      this.state = {
-        ...this.state,
-        ...(result.status || {})
-      };
+      const result = await this.request("/api/admin/fail2ban/unban-all", { method: "POST" });
+      this.state = { ...this.state, ...(result.status || {}) };
       this.showToast("已成功解封所有 IP", "success");
-      this.updateStatusView();
-      this.renderIpStatsSection();
+      this.updateAllViews();
     } catch (error) {
       this.showToast(error.message || "一键解封失败", "error");
     }
@@ -346,19 +311,15 @@ class SecurityManager {
     this.token = "";
     sessionStorage.removeItem(TOKEN_STORAGE_KEY);
     this.showToast("控制台已锁定", "success");
-    this.showDashboardPage();
+    this.setView("dashboard");
   }
 
   formatTime(isoString) {
     if (!isoString) return "-";
     const date = new Date(isoString);
     if (Number.isNaN(date.getTime())) return "-";
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const hour = String(date.getHours()).padStart(2, "0");
-    const minute = String(date.getMinutes()).padStart(2, "0");
-    const second = String(date.getSeconds()).padStart(2, "0");
-    return `${month}/${day} ${hour}:${minute}:${second}`;
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   }
 
   renderSecurityView() {
@@ -369,18 +330,10 @@ class SecurityManager {
     this.container.appendChild(dashboardNode);
 
     // 绑定返回与顶部操作事件
-    this.container.querySelector("#sec-back-btn")?.addEventListener("click", () => {
-      this.showDashboardPage();
-    });
-    this.container.querySelector("#sec-refresh-btn")?.addEventListener("click", () => {
-      this.fetchStatus();
-    });
-    this.container.querySelector("#sec-lock-btn")?.addEventListener("click", () => {
-      this.lock();
-    });
-    this.container.querySelector("#sec-unban-all-btn")?.addEventListener("click", () => {
-      this.unbanAll();
-    });
+    this.container.querySelector("#sec-back-btn")?.addEventListener("click", () => this.setView("dashboard"));
+    this.container.querySelector("#sec-refresh-btn")?.addEventListener("click", () => this.fetchStatus());
+    this.container.querySelector("#sec-lock-btn")?.addEventListener("click", () => this.lock());
+    this.container.querySelector("#sec-unban-all-btn")?.addEventListener("click", () => this.unbanAll());
 
     const banForm = this.container.querySelector("#sec-ban-form");
     const banInput = this.container.querySelector("#sec-ban-ip-input");
@@ -390,17 +343,18 @@ class SecurityManager {
       if (banInput) banInput.value = "";
     });
 
-    // 绑定 IP 频次统计执行事件
-    const runStatsBtn = this.container.querySelector("#sec-run-stats-btn");
-    runStatsBtn?.addEventListener("click", () => this.fetchIpStats(true));
+    this.container.querySelector("#sec-run-stats-btn")?.addEventListener("click", () => this.fetchIpStats(true));
 
+    this.updateAllViews();
+  }
+
+  updateAllViews() {
     this.updateStatusView();
     this.renderIpStatsSection();
   }
 
   updateStatusView() {
     if (!this.container) return;
-
     const bannedIps = this.state.bannedIps || [];
 
     const badgeEl = this.container.querySelector("#sec-badge");
@@ -421,9 +375,7 @@ class SecurityManager {
     if (statBannedEl) statBannedEl.textContent = this.state.currentlyBanned;
     if (statTotalBannedEl) statTotalBannedEl.textContent = this.state.totalBanned;
     if (statTotalFailedEl) statTotalFailedEl.textContent = this.state.totalFailed;
-    if (itemBannedEl) {
-      itemBannedEl.classList.toggle("banned", this.state.currentlyBanned > 0);
-    }
+    if (itemBannedEl) itemBannedEl.classList.toggle("banned", this.state.currentlyBanned > 0);
     if (countEl) countEl.textContent = `共 ${bannedIps.length} 个 IP`;
 
     if (bannedIps.length === 0) {
@@ -447,19 +399,8 @@ class SecurityManager {
             typeBadge.classList.add(isV6 ? "ipv6" : "ipv4");
           }
 
-          const copyBtn = rowNode.querySelector(".copy-btn");
-          copyBtn?.addEventListener("click", () => {
-            navigator.clipboard.writeText(ip).then(() => {
-              this.showToast(`已复制 IP: ${ip}`, "success");
-            }).catch(() => {
-              this.showToast("复制失败", "error");
-            });
-          });
-
-          const unbanBtn = rowNode.querySelector(".unban-btn");
-          unbanBtn?.addEventListener("click", () => {
-            this.unbanIp(ip);
-          });
+          rowNode.querySelector(".copy-btn")?.addEventListener("click", () => this.copyIp(ip));
+          rowNode.querySelector(".unban-btn")?.addEventListener("click", () => this.unbanIp(ip));
 
           tbodyEl.appendChild(rowNode);
         }
@@ -507,9 +448,7 @@ class SecurityManager {
         const rankBadge = rowNode.querySelector(".rank-badge");
         if (rankBadge) {
           rankBadge.textContent = item.rank;
-          if (item.rank <= 3) {
-            rankBadge.classList.add(`rank-${item.rank}`);
-          }
+          if (item.rank <= 3) rankBadge.classList.add(`rank-${item.rank}`);
         }
 
         const ipBadge = rowNode.querySelector(".ip-mono-badge");
@@ -523,29 +462,18 @@ class SecurityManager {
 
         const isBanned = bannedSet.has(item.ip);
         const bannedPill = rowNode.querySelector(".ip-banned-pill");
-        if (bannedPill && isBanned) {
-          bannedPill.style.display = "inline-block";
-        }
+        if (bannedPill && isBanned) bannedPill.style.display = "inline-block";
 
         const countEl = rowNode.querySelector(".stat-count");
         if (countEl) countEl.textContent = item.count?.toLocaleString();
 
         const progressFill = rowNode.querySelector(".stat-progress-fill");
-        if (progressFill) {
-          progressFill.style.width = item.percentage;
-        }
+        if (progressFill) progressFill.style.width = item.percentage;
 
         const percentText = rowNode.querySelector(".stat-percent-text");
         if (percentText) percentText.textContent = item.percentage;
 
-        const copyBtn = rowNode.querySelector(".copy-btn");
-        copyBtn?.addEventListener("click", () => {
-          navigator.clipboard.writeText(item.ip).then(() => {
-            this.showToast(`已复制 IP: ${item.ip}`, "success");
-          }).catch(() => {
-            this.showToast("复制失败", "error");
-          });
-        });
+        rowNode.querySelector(".copy-btn")?.addEventListener("click", () => this.copyIp(item.ip));
 
         const quickBanBtn = rowNode.querySelector(".quick-ban-btn");
         if (quickBanBtn) {
@@ -553,9 +481,7 @@ class SecurityManager {
             quickBanBtn.disabled = true;
             quickBanBtn.querySelector("span").textContent = "已封禁";
           } else {
-            quickBanBtn.addEventListener("click", () => {
-              this.banIp(item.ip);
-            });
+            quickBanBtn.addEventListener("click", () => this.banIp(item.ip));
           }
         }
 
