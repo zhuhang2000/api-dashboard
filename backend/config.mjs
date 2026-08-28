@@ -6,7 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
 
-export const publicDir = path.join(rootDir, "public");
+export const frontDir = path.join(rootDir, "front");
 
 function loadEnv() {
   const envFilePath = path.join(rootDir, ".env");

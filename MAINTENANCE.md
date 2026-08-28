@@ -89,8 +89,7 @@ systemctl restart api-dashboard.service
 
 | 配置文件类型 | 绝对路径 | 作用说明 |
 | :--- | :--- | :--- |
-| **环境变量配置文件** | `/opt/services/api-dashboard/.env` | 监听端口、监听 Host、CPA API 地址与管理密钥 |
-| **看板持久化配置文件** | `/opt/services/api-dashboard/data/config.json` | 存放页面保存的各项配置 |
+| **环境变量配置文件** | `/opt/services/api-dashboard/.env` | 监听端口、监听 Host、CPA API 地址、管理密钥与管理员密码 |
 | **Systemd 服务文件** | `/etc/systemd/system/api-dashboard.service` | 控制工作目录、启动命令及守护进程配置 |
 | **Nginx 虚拟主机配置** | `/etc/nginx/sites-available/api-dashboard.conf` | 域名 `dashboard.alpha-lab.cc` 的 SSL 及反向代理规则配置 |
 | **SSL 证书 (Cloudflare)** | `/etc/ssl/cloudflare/origin.pem` | Nginx HTTPS 所需的 origin 证书文件 |
