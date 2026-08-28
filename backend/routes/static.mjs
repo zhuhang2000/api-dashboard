@@ -12,13 +12,13 @@ const mimeTypes = {
   ".ico": "image/x-icon"
 };
 
-export async function serveStatic(req, res, pathname, publicDir) {
+export async function serveStatic(req, res, pathname, frontDir) {
   const requested = pathname === "/" ? "/index.html" : pathname;
   const decoded = decodeURIComponent(requested);
   const safePath = path.normalize(decoded).replace(/^(\.\.[/\\])+/, "");
-  const fullPath = path.join(publicDir, safePath);
+  const fullPath = path.join(frontDir, safePath);
 
-  if (!fullPath.startsWith(publicDir)) {
+  if (!fullPath.startsWith(frontDir)) {
     return textResponse(res, 403, "forbidden");
   }
 

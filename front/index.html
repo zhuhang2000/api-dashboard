@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Codex 额度看板</title>
+    <!-- 全局公共样式 -->
+    <link rel="stylesheet" href="/styles.css">
+    <!-- 组件模块样式 -->
+    <link rel="stylesheet" href="/dashboard/dashboard.css">
+    <link rel="stylesheet" href="/security-manager/security-manager.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <!-- Codex 额度看板组件挂载点 -->
+      <div id="dashboard"></div>
+
+      <!-- Fail2ban 安全管理组件挂载点 -->
+      <div id="security-manager"></div>
+    </main>
+
+    <!-- 组件模块脚本 -->
+    <script src="/dashboard/dashboard.js" type="module"></script>
+    <script src="/security-manager/security-manager.js" type="module"></script>
+  </body>
+</html>

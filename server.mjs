@@ -1,5 +1,5 @@
 import http from "node:http";
-import { loadConfig, PORT, HOST, publicDir } from "./backend/config.mjs";
+import { loadConfig, PORT, HOST, frontDir } from "./backend/config.mjs";
 import { jsonResponse } from "./backend/utils/http.mjs";
 import { handleApi } from "./backend/routes/api.mjs";
 import { serveStatic } from "./backend/routes/static.mjs";
@@ -13,7 +13,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname.startsWith("/api/")) {
       return await handleApi(req, res, url.pathname, config);
     }
-    return await serveStatic(req, res, url.pathname, publicDir);
+    return await serveStatic(req, res, url.pathname, frontDir);
   } catch (error) {
     const statusCode = error.statusCode || 500;
     jsonResponse(res, statusCode, {

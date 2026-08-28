@@ -1,0 +1,204 @@
+/* ==========================================================================
+   Codex Quota Dashboard Component Styles
+   Inherits base tokens, typography, and button styles from /styles.css
+   ========================================================================== */
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+}
+
+/* Account Card */
+.account-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.account-card:hover {
+  border-color: #d1d5db;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.account-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px dashed var(--border);
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+}
+
+.account-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Codex badge styled as purple pill */
+.account-title h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4f46e5;
+  background-color: #eef2ff;
+  padding: 3px 8px;
+  border-radius: 6px;
+  line-height: 1.2;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--muted);
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.account-card.ready .status-dot {
+  border-color: var(--green);
+  background: var(--green);
+}
+
+.account-card.low .status-dot {
+  border-color: var(--amber);
+  background: var(--amber);
+}
+
+.account-card.exhausted .status-dot,
+.account-card.error .status-dot {
+  border-color: var(--red);
+  background: var(--red);
+}
+
+.plan-pill {
+  font-size: 13px;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.plan-pill.free {
+  color: #9ca3af;
+}
+
+.meta-line {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+/* Quota rows and progress bars */
+.quota-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.quota-row {
+  display: grid;
+  gap: 6px;
+}
+
+.quota-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.quota-label {
+  color: #374151;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.quota-value-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quota-percent {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--green);
+}
+
+.quota-percent.low {
+  color: var(--amber);
+}
+
+.quota-percent.danger {
+  color: var(--red);
+}
+
+.quota-reset {
+  color: #9ca3af;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* Progress track */
+.progress-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--green);
+}
+
+.progress-fill.low {
+  background: var(--amber);
+}
+
+.progress-fill.danger {
+  background: var(--red);
+}
+
+/* Card action buttons */
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.error-box {
+  display: none;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(239, 61, 61, 0.2);
+  background: rgba(239, 61, 61, 0.04);
+  color: #b91c1c;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.account-card.error .error-box {
+  display: block;
+}
+
+@media (max-width: 820px) {
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
