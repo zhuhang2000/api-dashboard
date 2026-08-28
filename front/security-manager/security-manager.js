@@ -21,7 +21,9 @@ class SecurityManager {
       bannedIps: [],
       updatedAt: null,
       loading: false,
-      lockError: ""
+      lockError: "",
+      ipStats: null,
+      statsLoading: false
     };
 
     this.init();
@@ -35,6 +37,7 @@ class SecurityManager {
       await this.loadTemplates();
       if (this.token) {
         await this.fetchStatus();
+        await this.fetchIpStats(false);
       } else {
         this.renderLockView();
       }
@@ -44,17 +47,18 @@ class SecurityManager {
   }
 
   async loadTemplates() {
-    const res = await fetch(HTML_TEMPLATE_PATH);
+    const res = await fetch(HTML_TEMPLATE_PATH, { cache: "no-store" });
     if (!res.ok) {
       throw new Error(`Failed to load template from ${HTML_TEMPLATE_PATH}`);
     }
     const html = await res.text();
     const doc = new DOMParser().parseFromString(html, "text/html");
-    
+
     this.templates = {
       lock: doc.querySelector("#sec-lock-template"),
       dashboard: doc.querySelector("#sec-dashboard-template"),
-      row: doc.querySelector("#sec-ip-row-template")
+      row: doc.querySelector("#sec-ip-row-template"),
+      statsRow: doc.querySelector("#sec-stats-row-template")
     };
   }
 
@@ -116,6 +120,7 @@ class SecurityManager {
       this.state.lockError = "";
       this.showToast("解锁成功", "success");
       await this.fetchStatus();
+      await this.fetchIpStats(false);
     } catch (error) {
       this.state.lockError = error.message || "密码错误";
       this.renderLockView();
@@ -137,6 +142,39 @@ class SecurityManager {
       this.state.loading = false;
       this.showToast(error.message, "error");
       this.renderDashboardView();
+    }
+  }
+
+  async fetchIpStats(run = false) {
+    this.state.statsLoading = true;
+    const runBtn = this.container?.querySelector("#sec-run-stats-btn");
+    if (runBtn) {
+      runBtn.disabled = true;
+      runBtn.querySelector("span").textContent = run ? "正在分析..." : "加载中...";
+    }
+
+    try {
+      const path = run ? "/api/admin/ip-stats/run" : "/api/admin/ip-stats/latest";
+      const method = run ? "POST" : "GET";
+      const data = await this.request(path, { method });
+
+      if (data && data.items) {
+        this.state.ipStats = data;
+        if (run) {
+          this.showToast("IP 频次统计分析完成", "success");
+        }
+      }
+      this.renderIpStatsSection();
+    } catch (error) {
+      if (run) {
+        this.showToast(error.message || "执行统计失败", "error");
+      }
+    } finally {
+      this.state.statsLoading = false;
+      if (runBtn) {
+        runBtn.disabled = false;
+        runBtn.querySelector("span").textContent = "执行统计";
+      }
     }
   }
 
@@ -262,7 +300,7 @@ class SecurityManager {
     section.appendChild(dashboardNode);
     this.container.appendChild(section);
 
-    // 填充数据
+    // 填充 Fail2ban 状态数据
     const badgeEl = this.container.querySelector("#sec-badge");
     const sublineEl = this.container.querySelector("#sec-subline");
     const statBannedEl = this.container.querySelector("#sec-stat-banned");
@@ -338,6 +376,110 @@ class SecurityManager {
       this.banIp(banInput?.value);
       if (banInput) banInput.value = "";
     });
+
+    // 绑定 IP 频次统计执行事件
+    const runStatsBtn = this.container.querySelector("#sec-run-stats-btn");
+    runStatsBtn?.addEventListener("click", () => this.fetchIpStats(true));
+
+    // 渲染 IP 频次统计区域
+    this.renderIpStatsSection();
+  }
+
+  renderIpStatsSection() {
+    const stats = this.state.ipStats;
+    const spanEl = this.container?.querySelector("#sec-stats-span");
+    const metaGrid = this.container?.querySelector("#sec-stats-meta-grid");
+    const metaUnique = this.container?.querySelector("#sec-meta-unique");
+    const metaMatches = this.container?.querySelector("#sec-meta-matches");
+    const metaLines = this.container?.querySelector("#sec-meta-lines");
+    const emptyEl = this.container?.querySelector("#sec-stats-empty");
+    const tableWrapper = this.container?.querySelector("#sec-stats-table-wrapper");
+    const tbodyEl = this.container?.querySelector("#sec-stats-tbody");
+
+    if (!stats || !stats.items || stats.items.length === 0) {
+      if (emptyEl) emptyEl.style.display = "block";
+      if (tableWrapper) tableWrapper.style.display = "none";
+      if (metaGrid) metaGrid.style.display = "none";
+      if (spanEl) spanEl.textContent = "未运行统计";
+      return;
+    }
+
+    if (spanEl) {
+      spanEl.textContent = `区间: ${stats.timeSpan || "全量日志"} | 更新于: ${this.formatTime(stats.updatedAt)}`;
+    }
+    if (metaGrid) metaGrid.style.display = "grid";
+    if (metaUnique) metaUnique.textContent = stats.uniqueIps?.toLocaleString() || 0;
+    if (metaMatches) metaMatches.textContent = stats.totalMatches?.toLocaleString() || 0;
+    if (metaLines) metaLines.textContent = stats.totalLines?.toLocaleString() || 0;
+
+    if (emptyEl) emptyEl.style.display = "none";
+    if (tableWrapper) tableWrapper.style.display = "block";
+
+    if (tbodyEl && this.templates?.statsRow) {
+      tbodyEl.innerHTML = "";
+      const bannedSet = new Set(this.state.bannedIps || []);
+
+      for (const item of stats.items) {
+        const rowNode = this.templates.statsRow.content.cloneNode(true);
+
+        const rankBadge = rowNode.querySelector(".rank-badge");
+        if (rankBadge) {
+          rankBadge.textContent = item.rank;
+          if (item.rank <= 3) {
+            rankBadge.classList.add(`rank-${item.rank}`);
+          }
+        }
+
+        const ipBadge = rowNode.querySelector(".ip-mono-badge");
+        if (ipBadge) ipBadge.textContent = item.ip;
+
+        const typeBadge = rowNode.querySelector(".ip-type-badge");
+        if (typeBadge) {
+          typeBadge.textContent = item.isV6 ? "IPv6" : "IPv4";
+          typeBadge.classList.add(item.isV6 ? "ipv6" : "ipv4");
+        }
+
+        const isBanned = bannedSet.has(item.ip);
+        const bannedPill = rowNode.querySelector(".ip-banned-pill");
+        if (bannedPill && isBanned) {
+          bannedPill.style.display = "inline-block";
+        }
+
+        const countEl = rowNode.querySelector(".stat-count");
+        if (countEl) countEl.textContent = item.count?.toLocaleString();
+
+        const progressFill = rowNode.querySelector(".stat-progress-fill");
+        if (progressFill) {
+          progressFill.style.width = item.percentage;
+        }
+
+        const percentText = rowNode.querySelector(".stat-percent-text");
+        if (percentText) percentText.textContent = item.percentage;
+
+        const copyBtn = rowNode.querySelector(".copy-btn");
+        copyBtn?.addEventListener("click", () => {
+          navigator.clipboard.writeText(item.ip).then(() => {
+            this.showToast(`已复制 IP: ${item.ip}`, "success");
+          }).catch(() => {
+            this.showToast("复制失败", "error");
+          });
+        });
+
+        const quickBanBtn = rowNode.querySelector(".quick-ban-btn");
+        if (quickBanBtn) {
+          if (isBanned) {
+            quickBanBtn.disabled = true;
+            quickBanBtn.querySelector("span").textContent = "已封禁";
+          } else {
+            quickBanBtn.addEventListener("click", () => {
+              this.banIp(item.ip);
+            });
+          }
+        }
+
+        tbodyEl.appendChild(rowNode);
+      }
+    }
   }
 }
 

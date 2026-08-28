@@ -30,7 +30,7 @@ export async function serveStatic(req, res, pathname, frontDir) {
     if (!info.isFile()) return textResponse(res, 404, "not found");
     res.writeHead(200, {
       "Content-Type": contentType,
-      "Cache-Control": extension === ".html" ? "no-store" : "public, max-age=300"
+      "Cache-Control": ["html", "js", "css"].includes(extension.replace(".", "")) ? "no-store, no-cache, must-revalidate" : "public, max-age=300"
     });
     createReadStream(fullPath).pipe(res);
   } catch {

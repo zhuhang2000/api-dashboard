@@ -188,6 +188,7 @@
   border-radius: 12px;
   padding: 20px;
   box-shadow: var(--shadow);
+  margin-bottom: 24px;
 }
 
 .sec-ip-header {
@@ -308,6 +309,139 @@
   display: inline-block;
 }
 
+/* ==========================================================================
+   IP Analyzer & Frequency Stats Styles
+   ========================================================================== */
+
+.sec-stats-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.sec-stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.sec-stats-title h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sec-stats-subline {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  display: block;
+}
+
+.sec-meta-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.rank-badge.rank-1 {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.rank-badge.rank-2 {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.rank-badge.rank-3 {
+  background: #ffedd5;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.ip-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ip-banned-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+}
+
+.stat-count {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.stat-percent-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stat-progress-track {
+  width: 90px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--track);
+  overflow: hidden;
+  flex: 0 0 90px;
+}
+
+.stat-progress-fill {
+  height: 100%;
+  background: #4f46e5;
+  border-radius: inherit;
+  transition: width 0.3s ease;
+}
+
+.stat-percent-text {
+  font-size: 12px;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.quick-ban-btn:hover:not(:disabled) {
+  border-color: #ef4444;
+  color: #ef4444;
+  background: #fef2f2;
+}
+
 /* Toast Message */
 .sec-toast {
   position: fixed;
@@ -353,5 +487,12 @@
   }
   .sec-ban-form {
     max-width: 100%;
+  }
+  .sec-meta-grid {
+    grid-template-columns: 1fr;
+  }
+  .stat-progress-track {
+    width: 60px;
+    flex: 0 0 60px;
   }
 }

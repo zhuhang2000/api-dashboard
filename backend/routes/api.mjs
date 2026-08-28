@@ -8,6 +8,10 @@ import {
   unbanFail2banIp,
   unbanAllFail2ban
 } from "../services/fail2ban.mjs";
+import {
+  executeIpStats,
+  getLatestIpStats
+} from "../services/ip-analyzer.mjs";
 
 export async function handleApi(req, res, pathname, config) {
   // Codex 额度刷新
@@ -59,6 +63,20 @@ export async function handleApi(req, res, pathname, config) {
     const result = await unbanAllFail2ban();
     const status = await getFail2banStatus("cliproxy-401");
     return jsonResponse(res, 200, { ...result, status });
+  }
+
+  // 执行 Python IP 频次统计分析
+  if (req.method === "POST" && pathname === "/api/admin/ip-stats/run") {
+    verifyAdminAuth(req);
+    const stats = await executeIpStats();
+    return jsonResponse(res, 200, stats || {});
+  }
+
+  // 获取最近一次 IP 统计分析结果
+  if (req.method === "GET" && pathname === "/api/admin/ip-stats/latest") {
+    verifyAdminAuth(req);
+    const stats = await getLatestIpStats();
+    return jsonResponse(res, 200, stats || {});
   }
 
   return jsonResponse(res, 404, { error: "not found" });
