@@ -3,10 +3,6 @@
    Inherits base design tokens, buttons, and reset from /styles.css
    ========================================================================== */
 
-.security-wrapper {
-  width: 100%;
-}
-
 .security-page {
   animation: fadeIn 0.2s ease-out;
 }
@@ -21,7 +17,7 @@
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-strong);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -30,18 +26,16 @@
 .security-title-group h2 svg {
   width: 20px;
   height: 20px;
-  color: #4f46e5;
+  color: var(--primary);
 }
 
 .back-btn {
   align-self: flex-start;
-  font-size: 12px;
   color: #4b5563;
 }
 
 .back-btn:hover {
-  color: #111827;
-  border-color: #d1d5db;
+  color: var(--text-strong);
 }
 
 /* ==========================================================================
@@ -62,7 +56,7 @@
 }
 
 .sec-modal-card {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 32px 28px;
@@ -90,12 +84,12 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .modal-close-btn:hover {
-  background: #f3f4f6;
-  color: #111827;
+  background: var(--surface-hover);
+  color: var(--text-strong);
 }
 
 .sec-modal-header .lock-icon-circle {
@@ -103,7 +97,7 @@
   height: 48px;
   border-radius: 50%;
   background: #eef2ff;
-  color: #4f46e5;
+  color: var(--primary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -119,7 +113,7 @@
   margin: 0 0 6px;
   font-size: 16px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-strong);
 }
 
 .sec-modal-header p {
@@ -145,11 +139,11 @@
   background: var(--surface);
   color: var(--text);
   outline: none;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .sec-input:focus {
-  border-color: #4f46e5;
+  border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
 }
 
@@ -158,7 +152,7 @@
   border-radius: 6px;
   background: rgba(239, 68, 68, 0.08);
   border: 1px solid rgba(239, 68, 68, 0.2);
-  color: #b91c1c;
+  color: var(--red-dark);
   font-size: 12px;
   text-align: center;
 }
@@ -256,7 +250,7 @@
   gap: 16px;
   margin-bottom: 16px;
   padding-bottom: 12px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--track);
 }
 
 .sec-ip-header h4,
@@ -283,7 +277,11 @@
 
 .sec-meta-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+}
+
+.sec-table-wrapper {
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .sec-ip-table {
@@ -298,7 +296,7 @@
   font-size: 12px;
   font-weight: 500;
   color: var(--muted);
-  background: #f9fafb;
+  background: var(--surface-subtle);
   border-bottom: 1px solid var(--border);
 }
 
@@ -316,7 +314,7 @@
 .sec-ip-table td {
   padding: 12px 14px;
   font-size: 13px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--track);
   vertical-align: middle;
 }
 
@@ -328,8 +326,8 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 13px;
   font-weight: 600;
-  color: #111827;
-  background: #f3f4f6;
+  color: var(--text-strong);
+  background: var(--track);
   padding: 4px 8px;
   border-radius: 6px;
   display: inline-flex;
@@ -343,7 +341,7 @@
   padding: 2px 6px;
   border-radius: 4px;
   text-transform: uppercase;
-  background: #e5e7eb;
+  background: var(--border);
   color: #4b5563;
 }
 
@@ -365,6 +363,7 @@
 }
 
 .ip-banned-pill {
+  display: inline-block;
   font-size: 11px;
   font-weight: 600;
   padding: 2px 6px;
@@ -383,8 +382,8 @@
   border-radius: 6px;
   font-size: 12px;
   font-weight: 700;
-  background: #f3f4f6;
-  color: #6b7280;
+  background: var(--track);
+  color: var(--muted);
 }
 
 .rank-badge.rank-1 {
@@ -409,7 +408,7 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 13px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-strong);
 }
 
 .stat-percent-cell {
@@ -429,7 +428,7 @@
 
 .stat-progress-fill {
   height: 100%;
-  background: #4f46e5;
+  background: var(--primary);
   border-radius: inherit;
   transition: width 0.3s ease;
 }
@@ -448,8 +447,8 @@
 }
 
 .quick-ban-btn:hover:not(:disabled) {
-  border-color: #ef4444;
-  color: #ef4444;
+  border-color: var(--red);
+  color: var(--red);
   background: #fef2f2;
 }
 
@@ -482,7 +481,7 @@
   border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
   z-index: 9999;
   display: flex;
   align-items: center;
@@ -491,7 +490,7 @@
 }
 
 .sec-toast.success { background: var(--green-dark); }
-.sec-toast.error { background: #991b1b; }
+.sec-toast.error { background: var(--red-dark); }
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(6px); }

@@ -1,17 +1,35 @@
 :root {
   color-scheme: light;
+
+  /* 基础背景与表面色 */
   --bg: #fafafa;
   --surface: #ffffff;
-  --surface-strong: #f9fafb;
+  --surface-subtle: #f9fafb;
+  --surface-hover: #f3f4f6;
+
+  /* 文本色阶 */
+  --text-strong: #111827;
   --text: #1f2937;
   --muted: #6b7280;
+
+  /* 边框 */
   --border: #e5e7eb;
+  --border-hover: #d1d5db;
+
+  /* 品牌主色 */
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+
+  /* 状态反馈色与轨道 */
   --track: #f3f4f6;
   --green: #10b981;
   --green-dark: #065f46;
   --red: #ef4444;
+  --red-dark: #991b1b;
   --amber: #f59e0b;
   --blue: #3b82f6;
+
+  /* 阴影 */
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
@@ -35,6 +53,10 @@ body {
   padding: 32px 0 48px;
 }
 
+/* ==========================================================================
+   Shared Topbar Component
+   ========================================================================== */
+
 .topbar {
   display: flex;
   align-items: center;
@@ -45,21 +67,11 @@ body {
   padding-bottom: 16px;
 }
 
-h1 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1.2;
-  color: #111827;
-  display: flex;
-  align-items: center;
-}
-
 .title-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background-color: #e5e7eb;
+  background-color: var(--border);
   color: #4b5563;
   font-size: 12px;
   font-weight: 600;
@@ -82,7 +94,10 @@ h1 {
   align-items: center;
 }
 
-/* Global button styles */
+/* ==========================================================================
+   Shared Button Components
+   ========================================================================== */
+
 button {
   border: 1px solid var(--border);
   background: var(--surface);
@@ -96,12 +111,12 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 button:hover:not(:disabled) {
-  background: #f9fafb;
-  border-color: #d1d5db;
+  background: var(--surface-subtle);
+  border-color: var(--border-hover);
 }
 
 button:disabled {
@@ -112,12 +127,6 @@ button:disabled {
 button:focus-visible {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-}
-
-.icon-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .icon-button svg {
@@ -131,48 +140,36 @@ button:focus-visible {
 }
 
 .primary {
-  background: #4f46e5;
+  background: var(--primary);
   color: white;
-  border-color: #4f46e5;
+  border-color: var(--primary);
 }
 
 .primary:hover:not(:disabled) {
-  background: #4338ca;
-  border-color: #4338ca;
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 .card-btn {
-  border: 1px solid var(--border);
-  background: #ffffff;
-  color: #374151;
-  border-radius: 999px;
   font-size: 12px;
-  font-weight: 500;
   padding: 5px 12px;
   min-height: 28px;
-  display: inline-flex;
-  align-items: center;
   gap: 4px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.card-btn:hover:not(:disabled) {
-  background: #f9fafb;
-  border-color: #d1d5db;
 }
 
 .card-btn:disabled {
   opacity: 0.45;
-  cursor: not-allowed;
-  background: #f9fafb;
+  background: var(--surface-subtle);
 }
 
 .card-btn svg {
-  color: #6b7280;
+  color: var(--muted);
 }
 
-/* Global Summary Grid */
+/* ==========================================================================
+   Shared Summary Grid Component
+   ========================================================================== */
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -201,32 +198,13 @@ button:focus-visible {
   font-size: 20px;
   font-weight: 600;
   line-height: 1;
-  color: #111827;
+  color: var(--text-strong);
 }
 
-.status-line {
-  min-height: 20px;
-  margin: 4px 0 12px;
-  color: var(--muted);
-  font-size: 13px;
-}
+/* ==========================================================================
+   Shared Responsive Breakpoints
+   ========================================================================== */
 
-.status-line.error {
-  color: var(--red);
-}
-
-.empty-state {
-  grid-column: 1 / -1;
-  background: var(--surface);
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-  padding: 32px;
-  text-align: center;
-  color: var(--muted);
-  font-size: 14px;
-}
-
-/* Responsive layout */
 @media (max-width: 820px) {
   .app-shell {
     width: min(100vw - 20px, 700px);
@@ -254,10 +232,6 @@ button:focus-visible {
 }
 
 @media (max-width: 460px) {
-  h1 {
-    font-size: 18px;
-  }
-
   .summary-grid {
     grid-template-columns: 1fr;
   }
