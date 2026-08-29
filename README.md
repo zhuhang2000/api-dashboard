@@ -57,7 +57,10 @@
 │       └── http.mjs                  # HTTP 响应封装与 Body 解析工具
 └── front/                            # 前端组件化静态资源
     ├── index.html                    # 纯净宿主骨架页面
-    ├── styles.css                    # 全局公共样式（设计变量、按钮、通用网格）
+    ├── common/                       # 前端共享公共层
+    │   ├── styles.css                # 全局公共样式（设计变量、按钮、通用网格）
+    │   ├── utils.js                  # 公共工具库（模板加载、网络请求、时间格式化、剪贴板）
+    │   └── toast.js                  # 全局 Toast 提示组件
     ├── dashboard/                    # Codex 额度看板独立组件
     │   ├── dashboard.html            # 看板 HTML 结构与卡片模板
     │   ├── dashboard.js              # 看板渲染与交互控制器

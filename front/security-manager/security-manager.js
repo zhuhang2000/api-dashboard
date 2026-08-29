@@ -3,6 +3,9 @@
 // Template loaded from /security-manager/security-manager.html
 // ==========================================================================
 
+import { loadHtmlTemplate, formatDateTime, requestJson, copyToClipboard } from "../common/utils.js";
+import { showToast } from "../common/toast.js";
+
 const TOKEN_STORAGE_KEY = "dashboard_admin_token";
 const HTML_TEMPLATE_PATH = "/security-manager/security-manager.html";
 
@@ -46,13 +49,7 @@ class SecurityManager {
   }
 
   async loadTemplates() {
-    const res = await fetch(HTML_TEMPLATE_PATH, { cache: "no-store" });
-    if (!res.ok) {
-      throw new Error(`Failed to load template from ${HTML_TEMPLATE_PATH}`);
-    }
-    const html = await res.text();
-    const doc = new DOMParser().parseFromString(html, "text/html");
-
+    const doc = await loadHtmlTemplate(HTML_TEMPLATE_PATH);
     this.templates = {
       modal: doc.querySelector("#sec-modal-template"),
       dashboard: doc.querySelector("#sec-dashboard-template"),
@@ -106,52 +103,27 @@ class SecurityManager {
     }
   }
 
-  showToast(message, type = "success") {
-    const existing = document.querySelector(".sec-toast");
-    if (existing) existing.remove();
-
-    const toast = document.createElement("div");
-    toast.className = `sec-toast ${type}`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-
-    setTimeout(() => {
-      toast.style.transition = "opacity 0.3s ease";
-      toast.style.opacity = "0";
-      setTimeout(() => toast.remove(), 300);
-    }, 3000);
-  }
-
-  copyIp(ip) {
-    navigator.clipboard.writeText(ip).then(() => {
-      this.showToast(`已复制 IP: ${ip}`, "success");
-    }).catch(() => {
-      this.showToast("复制失败", "error");
-    });
+  async copyIp(ip) {
+    try {
+      await copyToClipboard(ip);
+      showToast(`已复制 IP: ${ip}`, "success");
+    } catch {
+      showToast("复制失败", "error");
+    }
   }
 
   async request(path, options = {}) {
-    const headers = {
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    };
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
-    }
-
-    const response = await fetch(path, { ...options, headers });
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      if (data.code === "TOKEN_EXPIRED") {
+    try {
+      return await requestJson(path, { token: this.token, ...options });
+    } catch (error) {
+      if (error.code === "TOKEN_EXPIRED") {
         this.token = "";
         sessionStorage.removeItem(TOKEN_STORAGE_KEY);
         this.setView("dashboard");
-        this.openAuthModal(data.error || "登录已过期，请重新输入管理密码");
+        this.openAuthModal(error.message || "登录已过期，请重新输入管理密码");
       }
-      throw new Error(data.error || `HTTP ${response.status}`);
+      throw error;
     }
-    return data;
   }
 
   openAuthModal(initialError = "") {
@@ -200,7 +172,7 @@ class SecurityManager {
         this.token = password;
         sessionStorage.setItem(TOKEN_STORAGE_KEY, password);
         this.closeAuthModal();
-        this.showToast("解锁成功，已进入控制台", "success");
+        showToast("解锁成功，已进入控制台", "success");
         this.setView("security");
       } catch (error) {
         if (errorEl) {
@@ -226,7 +198,7 @@ class SecurityManager {
       this.state = { ...this.state, ...data };
       this.updateAllViews();
     } catch (error) {
-      this.showToast(error.message, "error");
+      showToast(error.message, "error");
       this.updateAllViews();
     }
   }
@@ -246,11 +218,11 @@ class SecurityManager {
 
       if (data && data.items) {
         this.state.ipStats = data;
-        if (run) this.showToast("IP 频次统计分析完成", "success");
+        if (run) showToast("IP 频次统计分析完成", "success");
       }
       this.renderIpStatsSection();
     } catch (error) {
-      if (run) this.showToast(error.message || "执行统计失败", "error");
+      if (run) showToast(error.message || "执行统计失败", "error");
     } finally {
       this.state.statsLoading = false;
       if (runBtn) {
@@ -262,7 +234,7 @@ class SecurityManager {
 
   async banIp(ip) {
     const target = String(ip || "").trim();
-    if (!target) return this.showToast("请输入需要封禁的 IP 地址", "error");
+    if (!target) return showToast("请输入需要封禁的 IP 地址", "error");
 
     try {
       const result = await this.request("/api/admin/fail2ban/ban", {
@@ -270,10 +242,10 @@ class SecurityManager {
         body: JSON.stringify({ ip: target })
       });
       this.state = { ...this.state, ...(result.status || {}) };
-      this.showToast(`已成功封禁 IP: ${target}`, "success");
+      showToast(`已成功封禁 IP: ${target}`, "success");
       this.updateAllViews();
     } catch (error) {
-      this.showToast(error.message || "封禁失败", "error");
+      showToast(error.message || "封禁失败", "error");
     }
   }
 
@@ -287,10 +259,10 @@ class SecurityManager {
         body: JSON.stringify({ ip: target })
       });
       this.state = { ...this.state, ...(result.status || {}) };
-      this.showToast(`已成功解封 IP: ${target}`, "success");
+      showToast(`已成功解封 IP: ${target}`, "success");
       this.updateAllViews();
     } catch (error) {
-      this.showToast(error.message || "解封失败", "error");
+      showToast(error.message || "解封失败", "error");
     }
   }
 
@@ -300,26 +272,18 @@ class SecurityManager {
     try {
       const result = await this.request("/api/admin/fail2ban/unban-all", { method: "POST" });
       this.state = { ...this.state, ...(result.status || {}) };
-      this.showToast("已成功解封所有 IP", "success");
+      showToast("已成功解封所有 IP", "success");
       this.updateAllViews();
     } catch (error) {
-      this.showToast(error.message || "一键解封失败", "error");
+      showToast(error.message || "一键解封失败", "error");
     }
   }
 
   lock() {
     this.token = "";
     sessionStorage.removeItem(TOKEN_STORAGE_KEY);
-    this.showToast("控制台已锁定", "success");
+    showToast("控制台已锁定", "success");
     this.setView("dashboard");
-  }
-
-  formatTime(isoString) {
-    if (!isoString) return "-";
-    const date = new Date(isoString);
-    if (Number.isNaN(date.getTime())) return "-";
-    const pad = (n) => String(n).padStart(2, "0");
-    return `${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   }
 
   renderSecurityView() {
@@ -370,7 +334,7 @@ class SecurityManager {
 
     if (badgeEl) badgeEl.textContent = bannedIps.length;
     if (sublineEl) {
-      sublineEl.textContent = `规则: ${this.state.jail} | 上次同步: ${this.formatTime(this.state.updatedAt)}`;
+      sublineEl.textContent = `规则: ${this.state.jail} | 上次同步: ${formatDateTime(this.state.updatedAt, { includeSeconds: true })}`;
     }
     if (statBannedEl) statBannedEl.textContent = this.state.currentlyBanned;
     if (statTotalBannedEl) statTotalBannedEl.textContent = this.state.totalBanned;
@@ -428,7 +392,7 @@ class SecurityManager {
     }
 
     if (spanEl) {
-      spanEl.textContent = `区间: ${stats.timeSpan || "全量日志"} | 更新于: ${this.formatTime(stats.updatedAt)}`;
+      spanEl.textContent = `区间: ${stats.timeSpan || "全量日志"} | 更新于: ${formatDateTime(stats.updatedAt, { includeSeconds: true })}`;
     }
     if (metaGrid) metaGrid.style.display = "grid";
     if (metaUnique) metaUnique.textContent = stats.uniqueIps?.toLocaleString() || 0;
