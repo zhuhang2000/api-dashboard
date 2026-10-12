@@ -55,20 +55,30 @@
 │   │   └── static.mjs                # 静态资源安全托管
 │   └── utils/
 │       └── http.mjs                  # HTTP 响应封装与 Body 解析工具
-└── front/                            # 前端组件化静态资源
-    ├── index.html                    # 纯净宿主骨架页面
-    ├── common/                       # 前端共享公共层
-    │   ├── styles.css                # 全局公共样式（设计变量、按钮、通用网格）
-    │   ├── utils.js                  # 公共工具库（模板加载、网络请求、时间格式化、剪贴板）
-    │   └── toast.js                  # 全局 Toast 提示组件
-    ├── dashboard/                    # Codex 额度看板独立组件
-    │   ├── dashboard.html            # 看板 HTML 结构与卡片模板
-    │   ├── dashboard.js              # 看板渲染与交互控制器
-    │   └── dashboard.css             # 账户卡片与进度条专属样式
-    └── security-manager/             # Fail2ban 安全管理独立组件
-        ├── security-manager.html     # 控制台与密码弹窗 HTML 模板
-        ├── security-manager.js       # 控制台交互、路由切换与 API 控制器
-        └── security-manager.css      # 弹窗、卡片、表格与排行榜专属样式
+└── front/                            # 前端（Vue 3 原生 ESM，免构建）
+    ├── index.html                    # 宿主页面（importmap + 样式入口）
+    ├── main.js                       # 根组件与 hash 视图切换
+    ├── services/                     # 数据层（不可命名为 api/，会与后端 /api/ 路由前缀冲突）
+    │   ├── http.js                   # requestJson 与受保护请求封装（Bearer 注入、401 清除凭证）
+    │   ├── auth.js                   # 管理员认证状态响应式单例（token / 失效原因）
+    │   ├── quotas.js                 # Codex 额度接口
+    │   └── admin.js                  # 控制台验证与 Fail2ban / IP 统计接口
+    ├── common/                       # 共享层：仅放被多个视图使用的通用能力
+    │   ├── styles.css                # 全局样式与设计令牌
+    │   ├── toast.js / toast.css      # 全局 Toast 提示（逻辑与样式成对）
+    │   ├── datetime.js               # 时间格式化
+    │   ├── clipboard.js              # 剪贴板复制
+    │   ├── template.js               # 组件 HTML 模板加载
+    │   └── vendor/                   # 离线 Vue 3 ESM 运行时
+    ├── dashboard/                    # Codex 额度看板视图
+    │   ├── dashboard.html            # 看板模板
+    │   ├── dashboard.js              # DashboardView 组件
+    │   ├── dashboard.css             # 账户卡片与进度条样式
+    │   └── format.js                 # 套餐 / 限额标签 / 剩余百分比等格式化
+    └── security-manager/             # Fail2ban 安全控制台视图
+        ├── security-manager.html     # 控制台与密码弹窗模板
+        ├── security-manager.js       # SecurityView 组件
+        └── security-manager.css      # 弹窗、卡片、表格与排行榜样式
 ```
 
 ---
