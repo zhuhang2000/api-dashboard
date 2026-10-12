@@ -62,7 +62,7 @@
       <header class="account-header">
         <div class="account-title">
           <span class="status-dot"></span>
-          <h2>{{ account.provider }}</h2>
+          <h2>Codex</h2>
         </div>
         <span class="plan-pill" :class="{ free: account.isFree }">套餐 {{ account.planText }}</span>
       </header>
@@ -91,7 +91,7 @@
         <div v-else class="meta-line">未获取到 5h / Weekly 数据</div>
       </div>
 
-      <div class="error-box">{{ account.error ? "额度读取失败" : "" }}</div>
+      <div v-if="account.dashboardStatus === 'error'" class="error-box">额度读取失败</div>
 
       <div class="card-actions">
         <button class="card-btn refresh-btn" type="button" :disabled="state.refreshing" @click="refreshQuotas">

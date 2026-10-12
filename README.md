@@ -40,21 +40,18 @@
 
 ```
 /opt/services/api-dashboard/
-├── server.mjs                        # 后端轻量主入口
-├── backend/                          # 后端业务分层模块
-│   ├── config.mjs                    # 配置中心与环境变量严格校验
-│   ├── services/
-│   │   ├── codex-quota.mjs           # Codex 账号与 Wham 额度查询服务
-│   │   ├── fail2ban.mjs              # Fail2ban 命令封装与 IP 安全管理
-│   │   ├── ip-analyzer.mjs           # Python 日志统计脚本调用与解析
-│   │   └── login-guard.mjs           # 控制台防暴力破解与自动封禁
-│   ├── middleware/
-│   │   └── auth.mjs                  # 管理员 Bearer Token 鉴权中间件
+├── server.mjs                        # 后端入口：分发请求，统一输出错误
+├── backend/
+│   ├── config.mjs                    # 环境变量读取与校验
+│   ├── http.mjs                      # 接口约定：httpError() 与 JSON 响应
 │   ├── routes/
-│   │   ├── api.mjs                   # API 路由分发器
-│   │   └── static.mjs                # 静态资源安全托管
-│   └── utils/
-│       └── http.mjs                  # HTTP 响应封装与 Body 解析工具
+│   │   ├── api.mjs                   # 全部接口的路由表与 /api/admin 统一鉴权
+│   │   └── static.mjs                # 前端静态资源托管
+│   └── services/
+│       ├── admin-auth.mjs            # 控制台登录、Bearer 鉴权与防暴力破解
+│       ├── codex-quota.mjs           # Codex 账号与额度查询
+│       ├── fail2ban.mjs              # fail2ban-client 命令封装
+│       └── ip-stats.mjs              # 日志 IP 频次统计脚本调用与结果解析
 └── front/                            # 前端（Vue 3 原生 ESM，免构建）
     ├── index.html                    # 宿主页面（importmap + 样式入口）
     ├── main.js                       # 根组件与 hash 视图切换
@@ -93,6 +90,11 @@ HOST=127.0.0.1
 # CPA 代理服务地址与统一管理密钥（同时作为安全管理控制台解锁密钥）
 CPA_BASE_URL=http://127.0.0.1:8317
 MANAGEMENT_KEY=your-management-key
+
+# 可选：未设置时使用以下默认值
+# FAIL2BAN_JAIL=cliproxy-401
+# IP_STATS_SCRIPT=/opt/services/cli-proxy/logs/count_ips.py
+# IP_STATS_RESULT=/opt/services/cli-proxy/logs/result.txt
 ```
 
 ---
@@ -106,16 +108,20 @@ MANAGEMENT_KEY=your-management-key
 | `/api/quotas/refresh` | `POST` | 无 | 刷新所有 Codex 账号额度 |
 | `/api/admin/verify` | `POST` | 密码校验 | 验证管理员密码（输错 5 次自动触发 IP 封禁） |
 | `/api/admin/fail2ban/status` | `GET` | `Bearer Token` | 获取 Fail2ban 统计指标与封禁 IP 列表 |
-| `/api/admin/fail2ban/ban` | `POST` | `Bearer Token` | 封禁指定 IP (`{ "ip": "x.x.x.x" }`) |
-| `/api/admin/fail2ban/unban` | `POST` | `Bearer Token` | 解封指定 IP (`{ "ip": "x.x.x.x" }`) |
-| `/api/admin/fail2ban/unban-all` | `POST` | `Bearer Token` | 一键解封所有规则下的 IP |
+| `/api/admin/fail2ban/ban` | `POST` | `Bearer Token` | 封禁指定 IP (`{ "ip": "x.x.x.x" }`)，返回最新状态 |
+| `/api/admin/fail2ban/unban` | `POST` | `Bearer Token` | 解封指定 IP (`{ "ip": "x.x.x.x" }`)，返回最新状态 |
+| `/api/admin/fail2ban/unban-all` | `POST` | `Bearer Token` | 一键解封所有规则下的 IP，返回最新状态 |
 | `/api/admin/ip-stats/run` | `POST` | `Bearer Token` | 执行 Python 脚本分析最新 IP 请求频次 |
-| `/api/admin/ip-stats/latest` | `GET` | `Bearer Token` | 获取最近一次 IP 请求频次统计结果 |
+| `/api/admin/ip-stats/latest` | `GET` | `Bearer Token` | 获取最近一次 IP 请求频次统计结果（从未运行过时为 `null`） |
 
-### 4.2 标准语义错误码 (`code`)
-后端接口采用标准错误码设计，前端拦截器无需硬编码 URL：
+### 4.2 响应约定
+- **成功**：HTTP 200，响应体直接是数据；没有数据时为 `null`（如登录成功、尚无统计结果）；
+- **失败**：HTTP 4xx / 5xx，响应体固定为 `{ "error": "中文提示", "code": "错误码（可选）" }`，前端可直接展示 `error`；
+- 未预期的程序异常统一返回「服务器内部错误」，详细堆栈只记录在服务日志中。
+
+### 4.3 语义错误码 (`code`)
 - `TOKEN_EXPIRED`：Token 失效或未授权，前端自动触发重新登录；
-- `INVALID_PASSWORD`：密码错误，附带 `remaining` 剩余尝试次数；
+- `INVALID_PASSWORD`：密码错误，剩余尝试次数包含在 `error` 提示中；
 - `IP_BANNED`：连续错误达到上限，IP 已被自动封禁。
 
 ---

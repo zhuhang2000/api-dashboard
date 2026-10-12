@@ -1,7 +1,6 @@
 import { stat } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import path from "node:path";
-import { textResponse } from "../utils/http.mjs";
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -36,4 +35,9 @@ export async function serveStatic(req, res, pathname, frontDir) {
   } catch {
     textResponse(res, 404, "not found");
   }
+}
+
+function textResponse(res, statusCode, body) {
+  res.writeHead(statusCode, { "Content-Type": "text/plain; charset=utf-8" });
+  res.end(body);
 }

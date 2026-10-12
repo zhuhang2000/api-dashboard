@@ -216,7 +216,6 @@
 }
 
 .error-box {
-  display: none;
   margin-top: 12px;
   padding: 10px 12px;
   border: 1px solid rgba(239, 61, 61, 0.2);
@@ -225,10 +224,6 @@
   border-radius: 6px;
   font-size: 13px;
   line-height: 1.4;
-}
-
-.account-card.error .error-box {
-  display: block;
 }
 
 @media (max-width: 820px) {

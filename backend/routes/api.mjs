@@ -1,103 +1,75 @@
-import { jsonResponse, readJsonBody } from "../utils/http.mjs";
-import { verifyAdminAuth } from "../middleware/auth.mjs";
-import { MANAGEMENT_KEY } from "../config.mjs";
+import { httpError, jsonResponse } from "../http.mjs";
+import * as adminAuth from "../services/admin-auth.mjs";
+import * as fail2ban from "../services/fail2ban.mjs";
+import * as ipStats from "../services/ip-stats.mjs";
 import { refreshQuotas } from "../services/codex-quota.mjs";
-import {
-  getFail2banStatus,
-  banFail2banIp,
-  unbanFail2banIp,
-  unbanAllFail2ban
-} from "../services/fail2ban.mjs";
-import {
-  executeIpStats,
-  getLatestIpStats
-} from "../services/ip-analyzer.mjs";
-import {
-  getClientIp,
-  recordLoginFailure,
-  recordLoginSuccess
-} from "../services/login-guard.mjs";
+
+// 全部接口清单："方法 路径" → handler(req)
+// /api/admin/* 除 verify 外统一在 handleApi 中校验 Bearer Token，handler 内无需再处理鉴权
+const routes = {
+  // Codex 额度
+  "POST /api/quotas/refresh": () => refreshQuotas(),
+
+  // 控制台登录
+  "POST /api/admin/verify": async (req) => {
+    const { password } = await readJsonBody(req);
+    await adminAuth.verifyLogin(req, password);
+    return null;
+  },
+
+  // Fail2ban：写操作完成后返回最新状态，结构与 GET status 一致
+  "GET /api/admin/fail2ban/status": () => fail2ban.status(),
+  "POST /api/admin/fail2ban/ban": async (req) => {
+    const { ip } = await readJsonBody(req);
+    await fail2ban.ban(ip);
+    return fail2ban.status();
+  },
+  "POST /api/admin/fail2ban/unban": async (req) => {
+    const { ip } = await readJsonBody(req);
+    await fail2ban.unban(ip);
+    return fail2ban.status();
+  },
+  "POST /api/admin/fail2ban/unban-all": async () => {
+    await fail2ban.unbanAll();
+    return fail2ban.status();
+  },
+
+  // 日志 IP 请求频次统计
+  "GET /api/admin/ip-stats/latest": () => ipStats.latest(),
+  "POST /api/admin/ip-stats/run": () => ipStats.run()
+};
 
 export async function handleApi(req, res, pathname) {
-  // Codex 额度刷新
-  if (req.method === "POST" && pathname === "/api/quotas/refresh") {
-    const payload = await refreshQuotas();
-    return jsonResponse(res, 200, payload);
+  const handler = routes[`${req.method} ${pathname}`];
+  if (!handler) {
+    throw httpError(404, "接口不存在");
   }
+  if (pathname.startsWith("/api/admin/") && pathname !== "/api/admin/verify") {
+    adminAuth.requireAdmin(req);
+  }
+  jsonResponse(res, 200, await handler(req));
+}
 
-  // 管理员凭证验证
-  if (req.method === "POST" && pathname === "/api/admin/verify") {
-    const clientIp = getClientIp(req);
-    const body = await readJsonBody(req);
-    const inputKey = String(body?.password || body?.managementKey || "").trim();
-
-    if (!MANAGEMENT_KEY || inputKey !== MANAGEMENT_KEY) {
-      const guard = await recordLoginFailure(clientIp);
-      if (guard.banned) {
-        return jsonResponse(res, 403, {
-          error: `MANAGEMENT_KEY 连续错误已达 5 次，您的 IP (${clientIp}) 已被安全系统自动封禁。`,
-          code: "IP_BANNED",
-          banned: true,
-          ip: clientIp
-        });
+// 读取 JSON 请求体：空请求体视为 {}，不是 JSON 对象一律拒绝（请求体只在这里校验一次）
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let raw = "";
+    req.on("data", (chunk) => {
+      raw += chunk;
+      if (raw.length > 65536) {
+        reject(httpError(413, "请求体过大"));
       }
-      return jsonResponse(res, 401, {
-        error: `MANAGEMENT_KEY 错误，剩余尝试次数：${guard.remaining} 次`,
-        code: "INVALID_PASSWORD",
-        remaining: guard.remaining
-      });
-    }
-
-    recordLoginSuccess(clientIp);
-    return jsonResponse(res, 200, { success: true, message: "验证成功" });
-  }
-
-  // 获取 Fail2ban 状态与封禁 IP 列表
-  if (req.method === "GET" && pathname === "/api/admin/fail2ban/status") {
-    verifyAdminAuth(req);
-    const status = await getFail2banStatus("cliproxy-401");
-    return jsonResponse(res, 200, status);
-  }
-
-  // 手动封禁 IP
-  if (req.method === "POST" && pathname === "/api/admin/fail2ban/ban") {
-    verifyAdminAuth(req);
-    const body = await readJsonBody(req);
-    const result = await banFail2banIp(body?.ip, "cliproxy-401");
-    const status = await getFail2banStatus("cliproxy-401");
-    return jsonResponse(res, 200, { ...result, status });
-  }
-
-  // 解封单个 IP
-  if (req.method === "POST" && pathname === "/api/admin/fail2ban/unban") {
-    verifyAdminAuth(req);
-    const body = await readJsonBody(req);
-    const result = await unbanFail2banIp(body?.ip, "cliproxy-401");
-    const status = await getFail2banStatus("cliproxy-401");
-    return jsonResponse(res, 200, { ...result, status });
-  }
-
-  // 一键解封所有 IP
-  if (req.method === "POST" && pathname === "/api/admin/fail2ban/unban-all") {
-    verifyAdminAuth(req);
-    const result = await unbanAllFail2ban();
-    const status = await getFail2banStatus("cliproxy-401");
-    return jsonResponse(res, 200, { ...result, status });
-  }
-
-  // 执行 Python IP 频次统计分析
-  if (req.method === "POST" && pathname === "/api/admin/ip-stats/run") {
-    verifyAdminAuth(req);
-    const stats = await executeIpStats();
-    return jsonResponse(res, 200, stats || {});
-  }
-
-  // 获取最近一次 IP 统计分析结果
-  if (req.method === "GET" && pathname === "/api/admin/ip-stats/latest") {
-    verifyAdminAuth(req);
-    const stats = await getLatestIpStats();
-    return jsonResponse(res, 200, stats || {});
-  }
-
-  return jsonResponse(res, 404, { error: "not found" });
+    });
+    req.on("end", () => {
+      if (!raw.trim()) return resolve({});
+      try {
+        const body = JSON.parse(raw);
+        if (body === null || typeof body !== "object" || Array.isArray(body)) throw new TypeError();
+        resolve(body);
+      } catch {
+        reject(httpError(400, "请求体必须是 JSON 对象"));
+      }
+    });
+    req.on("error", reject);
+  });
 }

@@ -12,17 +12,17 @@ const template = await loadHtmlText(new URL("./dashboard.html", import.meta.url)
 // 数据转换：接口账户数据 → 模板直接可用的展示数据
 // （额度分级 level 由后端统一判定，这里只做展示文本转换）
 // --------------------------------------------------------------------------
-const QUOTA_LABELS = { "5h": "5 小时限额", Weekly: "周限额" };
+const QUOTA_LABELS = { "5h": "5 小时限额", weekly: "周限额" };
 
 function toAccountView(account) {
   const plan = account.planType || "codex";
   return {
     ...account,
-    planText: plan.charAt(0).toUpperCase() + plan.slice(1).toLowerCase(),
-    isFree: plan.toLowerCase() === "free",
-    windows: (account.quota?.windows || []).map((w) => ({
+    planText: plan.charAt(0).toUpperCase() + plan.slice(1),
+    isFree: plan === "free",
+    windows: account.windows.map((w) => ({
       id: w.id,
-      label: QUOTA_LABELS[w.label] || w.label,
+      label: QUOTA_LABELS[w.id],
       percent: Math.round(w.remainingPercent),
       level: w.level,
       resetText: formatDateTime(w.resetAt)

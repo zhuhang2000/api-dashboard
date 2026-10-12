@@ -57,7 +57,7 @@ export const SecurityView = {
       authSubmitting: false,
       authError: "",
       banInput: "",
-      jail: "cliproxy-401",
+      jail: "",
       currentlyBanned: 0,
       totalBanned: 0,
       totalFailed: 0,
@@ -157,8 +157,7 @@ export const SecurityView = {
       const target = String(ip || "").trim();
       if (!target) return showToast("请输入需要封禁的 IP 地址", "error");
       try {
-        const res = await api.admin.banIp(target);
-        if (res.status) Object.assign(state, res.status);
+        Object.assign(state, await api.admin.banIp(target));
         showToast(`已成功封禁 IP: ${target}`, "success");
       } catch (error) {
         showToast(error.message || "封禁失败", "error");
@@ -176,8 +175,7 @@ export const SecurityView = {
       const target = String(ip || "").trim();
       if (!confirm(`确定要解封 IP: ${target} 吗？`)) return;
       try {
-        const res = await api.admin.unbanIp(target);
-        if (res.status) Object.assign(state, res.status);
+        Object.assign(state, await api.admin.unbanIp(target));
         showToast(`已成功解封 IP: ${target}`, "success");
       } catch (error) {
         showToast(error.message || "解封失败", "error");
@@ -187,8 +185,7 @@ export const SecurityView = {
     async function unbanAll() {
       if (!confirm("⚠️ 确定要一键解封所有规则下的 IP 吗？该操作将清除所有当前的封禁拦截。")) return;
       try {
-        const res = await api.admin.unbanAll();
-        if (res.status) Object.assign(state, res.status);
+        Object.assign(state, await api.admin.unbanAll());
         showToast("已成功解封所有 IP", "success");
       } catch (error) {
         showToast(error.message || "一键解封失败", "error");

@@ -1,59 +1,42 @@
 import { CPA_BASE_URL, MANAGEMENT_KEY } from "../config.mjs";
+import { httpError } from "../http.mjs";
 
 const WHAM_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 const WINDOW_5H = 5 * 3600;
 const WINDOW_7D = 7 * 24 * 3600;
 
 // 1. 底层 CPA 代理请求（带超时控制与错误规范化）
-async function cpaRequest(apiPath, options = {}) {
-  if (!MANAGEMENT_KEY) {
-    const err = new Error("management key is not configured");
-    err.statusCode = 400;
-    throw err;
-  }
-
+async function cpaRequest(apiPath, { method = "GET", body, timeoutMs = 45000 } = {}) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs || 45000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const res = await fetch(`${CPA_BASE_URL}${apiPath}`, {
-      method: options.method || "GET",
+      method,
       headers: {
         Authorization: `Bearer ${MANAGEMENT_KEY}`,
-        "Content-Type": "application/json",
-        ...(options.headers || {})
+        "Content-Type": "application/json"
       },
-      body: options.body ? JSON.stringify(options.body) : undefined,
+      body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal
     });
 
+    // CPA 响应是外部数据：在这里统一规范为对象，后续代码直接使用
     const text = await res.text();
-    let body = null;
+    let payload;
     try {
-      body = text ? JSON.parse(text) : {};
+      payload = JSON.parse(text || "{}") || {};
     } catch {
-      body = { raw: text };
+      payload = { raw: text };
     }
 
     if (!res.ok) {
-      const err = new Error(body?.error || body?.raw || `CPA HTTP ${res.status}`);
-      err.statusCode = res.status;
-      err.details = body;
-      throw err;
+      throw httpError(res.status, `CPA 请求失败：${payload.error || payload.raw || `HTTP ${res.status}`}`);
     }
-    return body || {};
+    return payload;
   } catch (err) {
-    if (err.name === "AbortError") {
-      const e = new Error("quota service timed out");
-      e.statusCode = 504;
-      throw e;
-    }
-    if (err instanceof TypeError) {
-      const e = new Error("quota service unavailable");
-      e.statusCode = 502;
-      e.details = { cause: err.message };
-      throw e;
-    }
+    if (err.name === "AbortError") throw httpError(504, "额度服务请求超时");
+    if (err instanceof TypeError) throw httpError(502, "额度服务不可用");
     throw err;
   } finally {
     clearTimeout(timeout);
@@ -85,7 +68,7 @@ async function listCodexAccounts() {
 
       const accountId = claims.chatgpt_account_id || auth.chatgpt_account_id || f?.account_id || f?.account || f?.project_id || "";
       const rawPlan = claims.plan_type || auth.plan_type || f?.plan_type || f?.planType || "";
-      const planType = rawPlan ? String(rawPlan).toUpperCase() : "CODEX";
+      const planType = rawPlan ? String(rawPlan).toLowerCase() : null;
 
       return {
         authIndex: f?.auth_index || f?.authIndex || "",
@@ -110,8 +93,7 @@ function parseQuota(payload) {
   const fiveHour = list.find((w) => (w.limit_window_seconds || w.limitWindowSeconds) === WINDOW_5H) || list[0];
   const weekly = list.find((w) => (w.limit_window_seconds || w.limitWindowSeconds) === WINDOW_7D) || list[1];
 
-  const buildWindow = (id, label, w) => {
-    if (!w) return null;
+  const buildWindow = (id, w) => {
     const rawUsed = w.used_percent ?? w.usedPercent;
     const hasUsed = rawUsed !== undefined && rawUsed !== null && rawUsed !== "";
     const used = Math.max(0, Math.min(100, Number(hasUsed ? rawUsed : (rateLimit.limit_reached ? 100 : 0)) || 0));
@@ -121,16 +103,16 @@ function parseQuota(payload) {
     const resetAfter = w.reset_after_seconds ?? w.resetAfterSeconds;
     const resetAt = resetSec ? Number(resetSec) * 1000 : (resetAfter ? Date.now() + Number(resetAfter) * 1000 : null);
 
-    return { id, label, usedPercent: used, remainingPercent: remaining, level: quotaLevel(remaining), resetAt, exhausted: used >= 100 };
+    return { id, remainingPercent: remaining, level: quotaLevel(remaining), resetAt };
   };
 
-  if (fiveHour) windows.push(buildWindow("5h", "5h", fiveHour));
-  if (weekly) windows.push(buildWindow("weekly", "Weekly", weekly));
+  if (fiveHour) windows.push(buildWindow("5h", fiveHour));
+  if (weekly) windows.push(buildWindow("weekly", weekly));
 
   const plan = payload?.plan_type || payload?.planType;
   return {
-    planType: plan ? String(plan).toUpperCase() : "",
-    windows: windows.filter(Boolean)
+    planType: plan ? String(plan).toLowerCase() : null,
+    windows
   };
 }
 
@@ -175,12 +157,10 @@ function quotaLevel(remainingPercent) {
   return "ready";
 }
 
-function deriveStatus(account, quota, error) {
-  if (error) return "error";
+function deriveStatus(account, windows) {
   if (account.disabled || account.unavailable) return "disabled";
-  const remList = (quota?.windows || []).map((w) => w.remainingPercent);
-  if (!remList.length) return "unknown";
-  const lowest = Math.min(...remList);
+  if (!windows.length) return "unknown";
+  const lowest = Math.min(...windows.map((w) => w.remainingPercent));
   if (lowest <= 0) return "exhausted";
   return quotaLevel(lowest);
 }
@@ -193,22 +173,14 @@ export async function refreshQuotas() {
     accounts.map(async (account) => {
       try {
         const quota = await callWhamUsage(account);
-        const planType = quota.planType || account.planType;
         return {
-          provider: "Codex",
-          planType,
-          quota,
-          dashboardStatus: deriveStatus(account, quota, null),
-          error: ""
+          planType: quota.planType || account.planType,
+          dashboardStatus: deriveStatus(account, quota.windows),
+          windows: quota.windows
         };
-      } catch (err) {
-        return {
-          provider: "Codex",
-          planType: account.planType || "CODEX",
-          quota: { windows: [] },
-          dashboardStatus: deriveStatus(account, null, err),
-          error: "quota refresh failed"
-        };
+      } catch {
+        // 单个账号查询失败不影响其他账号，该账号标记为 error
+        return { planType: account.planType, dashboardStatus: "error", windows: [] };
       }
     })
   );
