@@ -1,5 +1,5 @@
 import http from "node:http";
-import { PORT, HOST, frontDir } from "./backend/config.mjs";
+import { PORT, HOST } from "./backend/config.mjs";
 import { jsonResponse } from "./backend/http.mjs";
 import { handleApi } from "./backend/routes/api.mjs";
 import { serveStatic } from "./backend/routes/static.mjs";
@@ -12,7 +12,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname.startsWith("/api/")) {
       return await handleApi(req, res, url.pathname);
     }
-    return await serveStatic(req, res, url.pathname, frontDir);
+    return await serveStatic(req, res, url.pathname);
   } catch (error) {
     // 只有 httpError 的提示会返回给前端；其他异常属于程序错误，记录日志后返回通用提示
     const statusCode = error.statusCode || 500;

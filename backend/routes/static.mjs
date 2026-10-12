@@ -2,6 +2,8 @@ import { stat } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import path from "node:path";
 
+const frontDir = path.resolve(import.meta.dirname, "../../front");
+
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -11,12 +13,11 @@ const mimeTypes = {
   ".ico": "image/x-icon"
 };
 
-export async function serveStatic(req, res, pathname, frontDir) {
-  const requested = pathname === "/" ? "/index.html" : pathname;
-  const decoded = decodeURIComponent(requested);
-  const safePath = path.normalize(decoded).replace(/^(\.\.[/\\])+/, "");
-  const fullPath = path.join(frontDir, safePath);
-
+export async function serveStatic(req, res, pathname) {
+  // 1. 首页映射与相对路径提取（去首斜杠）
+  const relPath = pathname === "/" ? "index.html" : decodeURIComponent(pathname).slice(1);
+  const fullPath = path.resolve(frontDir, relPath);
+  // 2. 唯一必要的安全校验：如果越界跳出了 frontDir，直接 403
   if (!fullPath.startsWith(frontDir)) {
     return textResponse(res, 403, "forbidden");
   }
