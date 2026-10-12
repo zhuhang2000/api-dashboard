@@ -1,17 +1,24 @@
 <div class="dashboard-section">
   <section class="topbar">
     <div>
-      <h1>Codex 额度 <span class="title-badge" id="title-badge">0</span></h1>
-      <div class="subline" id="last-refresh">未刷新</div>
+      <h1>Codex 额度 <span class="title-badge">{{ state.summary.total || 0 }}</span></h1>
+      <div class="subline">{{ formatLastRefresh }}</div>
     </div>
     <div class="top-actions">
-      <button class="icon-button" id="open-security-btn" title="打开安全控制台">
+      <button class="icon-button" type="button" title="打开安全控制台" @click="openSecurity">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
         </svg>
         <span>控制台</span>
       </button>
-      <button class="icon-button primary" id="refresh-button" title="刷新额度" aria-label="刷新额度">
+      <button
+        class="icon-button primary"
+        type="button"
+        title="刷新额度"
+        aria-label="刷新额度"
+        :disabled="state.refreshing"
+        @click="refreshQuotas"
+      >
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14.9 4M4 12A8 8 0 0 1 18.9 8M19 4v4h-4M5 20v-4h4"/></svg>
         <span>刷新</span>
       </button>
@@ -21,42 +28,90 @@
   <section class="summary-grid" aria-label="账户汇总">
     <div class="summary-item">
       <span>账户</span>
-      <strong id="summary-total">0</strong>
+      <strong>{{ state.summary.total || 0 }}</strong>
     </div>
     <div class="summary-item">
       <span>可用</span>
-      <strong id="summary-ready">0</strong>
+      <strong>{{ state.summary.ready || 0 }}</strong>
     </div>
     <div class="summary-item">
       <span>低额度</span>
-      <strong id="summary-low">0</strong>
+      <strong>{{ state.summary.low || 0 }}</strong>
     </div>
     <div class="summary-item">
       <span>异常</span>
-      <strong id="summary-error">0</strong>
+      <strong>{{ (state.summary.error || 0) + (state.summary.exhausted || 0) }}</strong>
     </div>
   </section>
 
-  <div class="status-line" id="status-line"></div>
-  <section class="cards-grid" id="cards-grid" aria-live="polite"></section>
+  <div v-if="state.statusMessage" class="status-line" :class="{ error: state.statusIsError }">
+    {{ state.statusMessage }}
+  </div>
 
-  <template id="account-card-template">
-    <article class="account-card">
+  <section class="cards-grid" aria-live="polite">
+    <div v-if="!state.accounts.length && !state.refreshing" class="empty-state">
+      暂无 Codex OAuth 账号
+    </div>
+
+    <article
+      v-for="(account, idx) in state.accounts"
+      :key="idx"
+      class="account-card"
+      :class="account.dashboardStatus || 'unknown'"
+    >
       <header class="account-header">
         <div class="account-title">
           <span class="status-dot"></span>
-          <h2></h2>
+          <h2>{{ account.provider }}</h2>
         </div>
-        <span class="plan-pill"></span>
+        <span
+          class="plan-pill"
+          :class="{ free: (account.planType || '').toLowerCase() === 'free' }"
+        >
+          套餐 {{ formatPlan(account.planType) }}
+        </span>
       </header>
-      <div class="quota-stack"></div>
-      <div class="error-box"></div>
+
+      <div class="quota-stack">
+        <template v-if="account.quota && account.quota.windows && account.quota.windows.length">
+          <div
+            v-for="w in account.quota.windows"
+            :key="w.id"
+            class="quota-row"
+          >
+            <div class="quota-heading">
+              <div class="quota-label">
+                <span>{{ formatLabel(w.label) }}</span>
+              </div>
+              <div class="quota-value-group">
+                <span class="quota-percent" :class="percentClass(w.remainingPercent)">
+                  {{ Math.round(w.remainingPercent ?? 0) }}%
+                </span>
+                <span class="quota-reset">{{ formatReset(w.resetAt) }}</span>
+              </div>
+            </div>
+            <div class="progress-track">
+              <div
+                class="progress-fill"
+                :class="percentClass(w.remainingPercent)"
+                :style="{ width: `${Math.max(0, Math.min(100, Math.round(w.remainingPercent ?? 0)))}%` }"
+              ></div>
+            </div>
+          </div>
+        </template>
+        <div v-else class="meta-line">未获取到 5h / Weekly 数据</div>
+      </div>
+
+      <div class="error-box">{{ account.error ? "额度读取失败" : "" }}</div>
+
       <div class="card-actions">
-        <button class="card-btn refresh-btn">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 0 1-14.9 4M4 12A8 8 0 0 1 18.9 8M19 4v4h-4M5 20v-4h4"/></svg>
+        <button class="card-btn refresh-btn" type="button" :disabled="state.refreshing" @click="refreshQuotas">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 12a8 8 0 0 1-14.9 4M4 12A8 8 0 0 1 18.9 8M19 4v4h-4M5 20v-4h4"/>
+          </svg>
           <span>刷新额度</span>
         </button>
       </div>
     </article>
-  </template>
+  </section>
 </div>

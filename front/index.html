@@ -4,6 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Codex 额度看板</title>
+    <!-- 原生 ESM 模块映射 -->
+    <script type="importmap">
+      {
+        "imports": {
+          "vue": "/common/vendor/vue.esm-browser.prod.js"
+        }
+      }
+    </script>
     <!-- 全局公共样式 -->
     <link rel="stylesheet" href="/common/styles.css">
     <!-- 组件模块样式 -->
@@ -11,16 +19,10 @@
     <link rel="stylesheet" href="/security-manager/security-manager.css">
   </head>
   <body>
-    <main class="app-shell">
-      <!-- Codex 额度看板组件挂载点 -->
-      <div id="dashboard"></div>
+    <!-- Vue 单页应用根挂载点 -->
+    <div id="app"></div>
 
-      <!-- Fail2ban 安全管理组件挂载点 -->
-      <div id="security-manager"></div>
-    </main>
-
-    <!-- 组件模块脚本 -->
-    <script src="/dashboard/dashboard.js" type="module"></script>
-    <script src="/security-manager/security-manager.js" type="module"></script>
+    <!-- 应用根入口脚本 -->
+    <script src="/main.js" type="module"></script>
   </body>
 </html>
