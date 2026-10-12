@@ -88,12 +88,9 @@ cp .env.example .env
 PORT=3456
 HOST=127.0.0.1
 
-# CPA 代理服务地址与管理密钥
+# CPA 代理服务地址与统一管理密钥（同时作为安全管理控制台解锁密钥）
 CPA_BASE_URL=http://127.0.0.1:8317
 MANAGEMENT_KEY=your-management-key
-
-# 安全管理模块解锁密码
-ADMIN_PASSWORD=your-admin-password
 ```
 
 ---

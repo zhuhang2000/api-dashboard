@@ -1,347 +1,219 @@
+import { CPA_BASE_URL, MANAGEMENT_KEY } from "../config.mjs";
+
 const WHAM_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
-const WINDOW_5H_SECONDS = 5 * 60 * 60;
-const WINDOW_7D_SECONDS = 7 * 24 * 60 * 60;
+const WINDOW_5H = 5 * 3600;
+const WINDOW_7D = 7 * 24 * 3600;
 
-function requireManagementKey(config) {
-  if (!config.managementKey) {
-    const error = new Error("management key is not configured");
-    error.statusCode = 400;
-    throw error;
+// 1. 底层 CPA 代理请求（带超时控制与错误规范化）
+async function cpaRequest(apiPath, options = {}) {
+  if (!MANAGEMENT_KEY) {
+    const err = new Error("management key is not configured");
+    err.statusCode = 400;
+    throw err;
   }
-}
 
-async function cpaRequest(config, apiPath, options = {}) {
-  requireManagementKey(config);
-  const url = `${config.cpaBaseUrl}${apiPath}`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs || 45000);
+
   try {
-    const headers = {
-      Authorization: `Bearer ${config.managementKey}`,
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    };
-    const response = await fetch(url, {
+    const res = await fetch(`${CPA_BASE_URL}${apiPath}`, {
       method: options.method || "GET",
-      headers,
+      headers: {
+        Authorization: `Bearer ${MANAGEMENT_KEY}`,
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+      },
       body: options.body ? JSON.stringify(options.body) : undefined,
       signal: controller.signal
     });
-    const text = await response.text();
+
+    const text = await res.text();
     let body = null;
-    if (text) {
-      try {
-        body = JSON.parse(text);
-      } catch {
-        body = { raw: text };
-      }
+    try {
+      body = text ? JSON.parse(text) : {};
+    } catch {
+      body = { raw: text };
     }
-    if (!response.ok) {
-      const message = body?.error || body?.raw || `CPA HTTP ${response.status}`;
-      const error = new Error(message);
-      error.statusCode = response.status;
-      error.details = body;
-      throw error;
+
+    if (!res.ok) {
+      const err = new Error(body?.error || body?.raw || `CPA HTTP ${res.status}`);
+      err.statusCode = res.status;
+      err.details = body;
+      throw err;
     }
     return body || {};
-  } catch (error) {
-    if (error.name === "AbortError") {
-      const next = new Error("quota service timed out");
-      next.statusCode = 504;
-      throw next;
+  } catch (err) {
+    if (err.name === "AbortError") {
+      const e = new Error("quota service timed out");
+      e.statusCode = 504;
+      throw e;
     }
-    if (error instanceof TypeError) {
-      const next = new Error("quota service unavailable");
-      next.statusCode = 502;
-      next.details = { cause: error.message };
-      throw next;
+    if (err instanceof TypeError) {
+      const e = new Error("quota service unavailable");
+      e.statusCode = 502;
+      e.details = { cause: err.message };
+      throw e;
     }
-    throw error;
+    throw err;
   } finally {
     clearTimeout(timeout);
   }
 }
 
-function isCodexEntry(entry) {
-  const provider = String(entry?.provider || entry?.type || "").toLowerCase();
-  return provider === "codex";
-}
-
-function parseJwtPayload(token) {
-  if (typeof token !== "string") return null;
-  const parts = token.split(".");
-  if (parts.length < 2) return null;
+// 2. JWT Payload 解析辅助
+function parseJwt(token) {
+  if (typeof token !== "string" || !token.includes(".")) return null;
   try {
-    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
-    return JSON.parse(Buffer.from(padded, "base64").toString("utf8"));
+    const b64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(Buffer.from(b64, "base64").toString("utf8"));
   } catch {
     return null;
   }
 }
 
-function pickString(...values) {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim()) return value.trim();
-    if (typeof value === "number") return String(value);
-  }
-  return "";
-}
-
-function normalizePlan(value) {
-  const plan = String(value || "").trim();
-  if (!plan) return "";
-  if (plan.toLowerCase() === "plus") return "PLUS";
-  if (plan.toLowerCase() === "pro") return "PRO";
-  if (plan.toLowerCase() === "free") return "FREE";
-  return plan.toUpperCase();
-}
-
-function extractCodexClaims(entry) {
-  const claimSources = [];
-  if (entry?.id_token && typeof entry.id_token === "object") claimSources.push(entry.id_token);
-  if (entry?.metadata?.id_token) claimSources.push(parseJwtPayload(entry.metadata.id_token));
-  if (entry?.attributes?.id_token) claimSources.push(parseJwtPayload(entry.attributes.id_token));
-
-  for (const claims of claimSources) {
-    if (!claims || typeof claims !== "object") continue;
-    if (claims.chatgpt_account_id || claims.plan_type) return claims;
-    const nested = claims["https://api.openai.com/auth"];
-    if (nested && typeof nested === "object") return nested;
-  }
-  return {};
-}
-
-function codexAccountFromEntry(entry) {
-  const claims = extractCodexClaims(entry);
-  const accountId = pickString(
-    claims.chatgpt_account_id,
-    entry?.account_id,
-    entry?.account,
-    entry?.project_id
-  );
-  const planType = normalizePlan(pickString(
-    claims.plan_type,
-    claims.chatgpt_plan_type,
-    entry?.plan_type,
-    entry?.planType
-  ));
-  return {
-    id: pickString(entry?.id, entry?.name, entry?.auth_index),
-    authIndex: pickString(entry?.auth_index, entry?.authIndex),
-    name: pickString(entry?.name, entry?.label, entry?.email, entry?.id, "unknown"),
-    email: pickString(entry?.email, entry?.label),
-    accountId,
-    planType,
-    status: pickString(entry?.status, "unknown"),
-    statusMessage: pickString(entry?.status_message, entry?.statusMessage),
-    disabled: Boolean(entry?.disabled),
-    unavailable: Boolean(entry?.unavailable),
-    updatedAt: pickString(entry?.updated_at, entry?.modtime),
-    subscriptionUntil: claims.chatgpt_subscription_active_until || ""
-  };
-}
-
-async function listCodexAccounts(config) {
-  const payload = await cpaRequest(config, "/v0/management/auth-files");
+// 3. 获取并筛选 Codex 账号列表
+async function listCodexAccounts() {
+  const payload = await cpaRequest("/v0/management/auth-files");
   const files = Array.isArray(payload.files) ? payload.files : [];
-  return files.filter(isCodexEntry).map(codexAccountFromEntry);
+
+  return files
+    .filter((f) => String(f?.provider || f?.type || "").toLowerCase() === "codex")
+    .map((f) => {
+      const token = f?.id_token || f?.metadata?.id_token || f?.attributes?.id_token;
+      const claims = typeof token === "object" ? token : (parseJwt(token) || {});
+      const auth = claims["https://api.openai.com/auth"] || {};
+
+      const accountId = claims.chatgpt_account_id || auth.chatgpt_account_id || f?.account_id || f?.account || f?.project_id || "";
+      const rawPlan = claims.plan_type || auth.plan_type || f?.plan_type || f?.planType || "";
+      const planType = rawPlan ? String(rawPlan).toUpperCase() : "CODEX";
+
+      return {
+        authIndex: f?.auth_index || f?.authIndex || "",
+        accountId: String(accountId),
+        planType,
+        disabled: Boolean(f?.disabled),
+        unavailable: Boolean(f?.unavailable)
+      };
+    });
 }
 
-function firstObject(...values) {
-  for (const value of values) {
-    if (value && typeof value === "object" && !Array.isArray(value)) return value;
-  }
-  return null;
-}
+// 4. 解析配额窗口数据（5小时与周限额）
+function parseQuota(payload) {
+  const rateLimit = payload?.rate_limit || payload?.rateLimit || {};
+  const windows = [];
 
-function firstValue(...values) {
-  for (const value of values) {
-    if (value !== undefined && value !== null && value !== "") return value;
-  }
-  return undefined;
-}
-
-function numberFrom(value) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return 0;
-}
-
-function booleanFrom(value) {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (["true", "1", "yes"].includes(normalized)) return true;
-    if (["false", "0", "no"].includes(normalized)) return false;
-  }
-  return false;
-}
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function findQuotaWindows(rateLimit) {
-  const primary = firstObject(rateLimit?.primary_window, rateLimit?.primaryWindow);
-  const secondary = firstObject(rateLimit?.secondary_window, rateLimit?.secondaryWindow);
-  let fiveHour = null;
-  let weekly = null;
-  for (const candidate of [primary, secondary]) {
-    if (!candidate) continue;
-    const duration = numberFrom(firstValue(candidate.limit_window_seconds, candidate.limitWindowSeconds));
-    if (duration === WINDOW_5H_SECONDS && !fiveHour) fiveHour = candidate;
-    if (duration === WINDOW_7D_SECONDS && !weekly) weekly = candidate;
-  }
-  return {
-    fiveHour: fiveHour || primary,
-    weekly: weekly || secondary
-  };
-}
-
-function quotaResetAt(window) {
-  const resetAt = numberFrom(firstValue(window?.reset_at, window?.resetAt));
-  if (resetAt > 0) return resetAt * 1000;
-  const resetAfter = numberFrom(firstValue(window?.reset_after_seconds, window?.resetAfterSeconds));
-  if (resetAfter > 0) return Date.now() + resetAfter * 1000;
-  return null;
-}
-
-function buildWindow(id, label, window, rateLimit) {
-  if (!window) return null;
-  const usedRaw = firstValue(window.used_percent, window.usedPercent);
-  let usedPercent = numberFrom(usedRaw);
-  const hasUsed = usedRaw !== undefined && usedRaw !== null && usedRaw !== "";
-  if (!hasUsed) {
-    const exhaustedHint = booleanFrom(firstValue(rateLimit?.limit_reached, rateLimit?.limitReached)) ||
-      firstValue(rateLimit?.allowed) === false;
-    usedPercent = exhaustedHint ? 100 : 0;
-  }
-  usedPercent = clamp(usedPercent, 0, 100);
-  const remainingPercent = clamp(100 - usedPercent, 0, 100);
-  return {
-    id,
-    label,
-    usedPercent,
-    remainingPercent,
-    resetAt: quotaResetAt(window),
-    exhausted: usedPercent >= 100
-  };
-}
-
-function parseCodexQuota(payload) {
-  const rateLimit = firstObject(payload?.rate_limit, payload?.rateLimit);
-  const { fiveHour, weekly } = findQuotaWindows(rateLimit);
-  const windows = [
-    buildWindow("5h", "5h", fiveHour, rateLimit),
-    buildWindow("weekly", "Weekly", weekly, rateLimit)
+  const list = [
+    rateLimit.primary_window || rateLimit.primaryWindow,
+    rateLimit.secondary_window || rateLimit.secondaryWindow
   ].filter(Boolean);
+
+  const fiveHour = list.find((w) => (w.limit_window_seconds || w.limitWindowSeconds) === WINDOW_5H) || list[0];
+  const weekly = list.find((w) => (w.limit_window_seconds || w.limitWindowSeconds) === WINDOW_7D) || list[1];
+
+  const buildWindow = (id, label, w) => {
+    if (!w) return null;
+    const rawUsed = w.used_percent ?? w.usedPercent;
+    const hasUsed = rawUsed !== undefined && rawUsed !== null && rawUsed !== "";
+    const used = Math.max(0, Math.min(100, Number(hasUsed ? rawUsed : (rateLimit.limit_reached ? 100 : 0)) || 0));
+    const remaining = Math.max(0, Math.min(100, 100 - used));
+
+    const resetSec = w.reset_at ?? w.resetAt;
+    const resetAfter = w.reset_after_seconds ?? w.resetAfterSeconds;
+    const resetAt = resetSec ? Number(resetSec) * 1000 : (resetAfter ? Date.now() + Number(resetAfter) * 1000 : null);
+
+    return { id, label, usedPercent: used, remainingPercent: remaining, resetAt, exhausted: used >= 100 };
+  };
+
+  if (fiveHour) windows.push(buildWindow("5h", "5h", fiveHour));
+  if (weekly) windows.push(buildWindow("weekly", "Weekly", weekly));
+
+  const plan = payload?.plan_type || payload?.planType;
   return {
-    planType: normalizePlan(pickString(payload?.plan_type, payload?.planType)),
-    allowed: firstValue(rateLimit?.allowed) !== false,
-    limitReached: booleanFrom(firstValue(rateLimit?.limit_reached, rateLimit?.limitReached)),
-    windows
+    planType: plan ? String(plan).toUpperCase() : "",
+    windows: windows.filter(Boolean)
   };
 }
 
-async function callWhamUsage(config, account) {
+// 5. 请求 Wham 额度接口
+async function callWhamUsage(account) {
   if (!account.authIndex) throw new Error("missing auth_index");
   if (!account.accountId) throw new Error("missing chatgpt_account_id");
-  const payload = {
-    auth_index: account.authIndex,
-    method: "GET",
-    url: WHAM_USAGE_URL,
-    header: {
-      Authorization: "Bearer $TOKEN$",
-      "Content-Type": "application/json",
-      "User-Agent": "codex_cli_rs/0.76.0 (Debian 13.0.0; x86_64) WindowsTerminal",
-      "Chatgpt-Account-Id": account.accountId
-    }
-  };
-  const response = await cpaRequest(config, "/v0/management/api-call", {
+
+  const res = await cpaRequest("/v0/management/api-call", {
     method: "POST",
-    body: payload,
-    timeoutMs: 60000
+    timeoutMs: 60000,
+    body: {
+      auth_index: account.authIndex,
+      method: "GET",
+      url: WHAM_USAGE_URL,
+      header: {
+        Authorization: "Bearer $TOKEN$",
+        "Content-Type": "application/json",
+        "User-Agent": "codex_cli_rs/0.76.0 (Debian 13.0.0; x86_64) WindowsTerminal",
+        "Chatgpt-Account-Id": account.accountId
+      }
+    }
   });
-  const statusCode = Number(response.status_code || response.statusCode || 0);
-  const bodyText = typeof response.body === "string" ? response.body : JSON.stringify(response.body || {});
+
+  const statusCode = Number(res.status_code || res.statusCode || 0);
+  const bodyText = typeof res.body === "string" ? res.body : JSON.stringify(res.body || {});
   if (statusCode < 200 || statusCode >= 300) {
     throw new Error(bodyText || `upstream HTTP ${statusCode}`);
   }
-  try {
-    const parsed = JSON.parse(bodyText);
-    return parseCodexQuota(parsed);
-  } catch {
-    throw new Error("empty or invalid quota payload");
-  }
+
+  return parseQuota(JSON.parse(bodyText));
 }
 
-function deriveAccountState(account, quota, error) {
+// 6. 状态推导辅助
+function deriveStatus(account, quota, error) {
   if (error) return "error";
   if (account.disabled || account.unavailable) return "disabled";
-  const percentages = (quota?.windows || []).map((item) => item.remainingPercent);
-  if (percentages.length === 0) return "unknown";
-  const lowest = Math.min(...percentages);
+  const remList = (quota?.windows || []).map((w) => w.remainingPercent);
+  if (!remList.length) return "unknown";
+  const lowest = Math.min(...remList);
   if (lowest <= 0) return "exhausted";
   if (lowest < 15) return "low";
   return "ready";
 }
 
-function publicQuotaReport(report) {
-  return {
-    provider: "Codex",
-    planType: report.planType || "CODEX",
-    quota: report.quota || { windows: [] },
-    dashboardStatus: report.dashboardStatus || "unknown",
-    error: report.error ? "quota refresh failed" : ""
-  };
-}
+// 7. 导出接口：刷新并聚合汇总所有额度
+export async function refreshQuotas() {
+  const accounts = await listCodexAccounts();
 
-function summarizeReports(reports) {
-  const summary = {
-    total: reports.length,
-    ready: 0,
-    low: 0,
-    exhausted: 0,
-    error: 0
-  };
-  for (const report of reports) {
-    if (report.dashboardStatus === "ready") summary.ready += 1;
-    if (report.dashboardStatus === "low") summary.low += 1;
-    if (report.dashboardStatus === "exhausted") summary.exhausted += 1;
-    if (report.dashboardStatus === "error") summary.error += 1;
-  }
-  return summary;
-}
+  const reports = await Promise.all(
+    accounts.map(async (account) => {
+      try {
+        const quota = await callWhamUsage(account);
+        const planType = quota.planType || account.planType;
+        return {
+          provider: "Codex",
+          planType,
+          quota,
+          dashboardStatus: deriveStatus(account, quota, null),
+          error: ""
+        };
+      } catch (err) {
+        return {
+          provider: "Codex",
+          planType: account.planType || "CODEX",
+          quota: { windows: [] },
+          dashboardStatus: deriveStatus(account, null, err),
+          error: "quota refresh failed"
+        };
+      }
+    })
+  );
 
-export async function refreshQuotas(config) {
-  const accounts = await listCodexAccounts(config);
-  const reports = await Promise.all(accounts.map(async (account) => {
-    try {
-      const quota = await callWhamUsage(config, account);
-      const planType = quota.planType || account.planType;
-      return {
-        ...account,
-        planType,
-        quota,
-        dashboardStatus: deriveAccountState(account, quota, null),
-        error: ""
-      };
-    } catch (error) {
-      return {
-        ...account,
-        quota: { windows: [] },
-        dashboardStatus: deriveAccountState(account, null, error),
-        error: error.message || "quota refresh failed"
-      };
+  const summary = { total: reports.length, ready: 0, low: 0, exhausted: 0, error: 0 };
+  for (const r of reports) {
+    if (summary[r.dashboardStatus] !== undefined) {
+      summary[r.dashboardStatus]++;
     }
-  }));
+  }
+
   return {
     refreshedAt: new Date().toISOString(),
-    accounts: reports.map(publicQuotaReport),
-    summary: summarizeReports(reports)
+    accounts: reports,
+    summary
   };
 }

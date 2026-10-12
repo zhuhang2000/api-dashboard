@@ -31,7 +31,7 @@ function loadEnv() {
   }
 
   // 严格校验必要字段
-  const required = ["PORT", "HOST", "CPA_BASE_URL", "MANAGEMENT_KEY", "ADMIN_PASSWORD"];
+  const required = ["PORT", "HOST", "CPA_BASE_URL", "MANAGEMENT_KEY"];
   const missing = required.filter((k) => !process.env[k] || !process.env[k].trim());
   if (missing.length > 0) {
     throw new Error(`[Config Error] .env 文件中缺少必要配置项: ${missing.join(", ")}`);
@@ -48,15 +48,3 @@ export const PORT = Number(process.env.PORT);
 export const HOST = process.env.HOST;
 export const CPA_BASE_URL = process.env.CPA_BASE_URL;
 export const MANAGEMENT_KEY = process.env.MANAGEMENT_KEY;
-export const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-
-export function loadConfig() {
-  return {
-    cpaBaseUrl: CPA_BASE_URL,
-    managementKey: MANAGEMENT_KEY
-  };
-}
-
-export function getAdminPassword() {
-  return ADMIN_PASSWORD;
-}

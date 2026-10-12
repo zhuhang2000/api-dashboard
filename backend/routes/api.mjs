@@ -1,6 +1,6 @@
 import { jsonResponse, readJsonBody } from "../utils/http.mjs";
 import { verifyAdminAuth } from "../middleware/auth.mjs";
-import { getAdminPassword } from "../config.mjs";
+import { MANAGEMENT_KEY } from "../config.mjs";
 import { refreshQuotas } from "../services/codex-quota.mjs";
 import {
   getFail2banStatus,
@@ -18,32 +18,31 @@ import {
   recordLoginSuccess
 } from "../services/login-guard.mjs";
 
-export async function handleApi(req, res, pathname, config) {
+export async function handleApi(req, res, pathname) {
   // Codex 额度刷新
   if (req.method === "POST" && pathname === "/api/quotas/refresh") {
-    const payload = await refreshQuotas(config);
+    const payload = await refreshQuotas();
     return jsonResponse(res, 200, payload);
   }
 
-  // 管理员密码验证
+  // 管理员凭证验证
   if (req.method === "POST" && pathname === "/api/admin/verify") {
     const clientIp = getClientIp(req);
     const body = await readJsonBody(req);
-    const inputPassword = String(body?.password || "").trim();
-    const adminPassword = getAdminPassword();
+    const inputKey = String(body?.password || body?.managementKey || "").trim();
 
-    if (!adminPassword || inputPassword !== adminPassword) {
+    if (!MANAGEMENT_KEY || inputKey !== MANAGEMENT_KEY) {
       const guard = await recordLoginFailure(clientIp);
       if (guard.banned) {
         return jsonResponse(res, 403, {
-          error: `密码连续错误已达 5 次，您的 IP (${clientIp}) 已被安全系统自动封禁。`,
+          error: `MANAGEMENT_KEY 连续错误已达 5 次，您的 IP (${clientIp}) 已被安全系统自动封禁。`,
           code: "IP_BANNED",
           banned: true,
           ip: clientIp
         });
       }
       return jsonResponse(res, 401, {
-        error: `管理密码错误，剩余尝试次数：${guard.remaining} 次`,
+        error: `MANAGEMENT_KEY 错误，剩余尝试次数：${guard.remaining} 次`,
         code: "INVALID_PASSWORD",
         remaining: guard.remaining
       });
