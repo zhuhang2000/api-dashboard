@@ -58,27 +58,19 @@
 └── front/                            # 前端（Vue 3 原生 ESM，免构建）
     ├── index.html                    # 宿主页面（importmap + 样式入口）
     ├── main.js                       # 根组件与 hash 视图切换
-    ├── services/                     # 数据层（不可命名为 api/，会与后端 /api/ 路由前缀冲突）
-    │   ├── http.js                   # requestJson 与受保护请求封装（Bearer 注入、401 清除凭证）
-    │   ├── auth.js                   # 管理员认证状态响应式单例（token / 失效原因）
-    │   ├── quotas.js                 # Codex 额度接口
-    │   └── admin.js                  # 控制台验证与 Fail2ban / IP 统计接口
-    ├── common/                       # 共享层：仅放被多个视图使用的通用能力
+    ├── api.js                        # 数据层：全部后端接口、Bearer 注入、401 处理与认证状态单例
+    ├── common/                       # 共享层：仅放被多个视图共同使用的内容
     │   ├── styles.css                # 全局样式与设计令牌
-    │   ├── toast.js / toast.css      # 全局 Toast 提示（逻辑与样式成对）
-    │   ├── datetime.js               # 时间格式化
-    │   ├── clipboard.js              # 剪贴板复制
-    │   ├── template.js               # 组件 HTML 模板加载
+    │   ├── utils.js                  # 时间格式化、组件模板加载
     │   └── vendor/                   # 离线 Vue 3 ESM 运行时
     ├── dashboard/                    # Codex 额度看板视图
     │   ├── dashboard.html            # 看板模板
-    │   ├── dashboard.js              # DashboardView 组件
-    │   ├── dashboard.css             # 账户卡片与进度条样式
-    │   └── format.js                 # 套餐 / 限额标签 / 剩余百分比等格式化
+    │   ├── dashboard.js              # DashboardView 组件（含额度格式化）
+    │   └── dashboard.css             # 账户卡片与进度条样式
     └── security-manager/             # Fail2ban 安全控制台视图
         ├── security-manager.html     # 控制台与密码弹窗模板
-        ├── security-manager.js       # SecurityView 组件
-        └── security-manager.css      # 弹窗、卡片、表格与排行榜样式
+        ├── security-manager.js       # SecurityView 组件（含 Toast、剪贴板）
+        └── security-manager.css      # 弹窗、卡片、表格、排行榜与 Toast 样式
 ```
 
 ---

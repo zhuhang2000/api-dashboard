@@ -1,5 +1,6 @@
 // ==========================================================================
-// Date & Time Formatting (front/common/datetime.js)
+// Front-end Shared Utility Helpers
+// 仅收录被多个视图共同使用的函数；单一视图专用的逻辑放在各自组件文件内
 // ==========================================================================
 
 /**
@@ -24,4 +25,17 @@ export function formatDateTime(value, { includeSeconds = false } = {}) {
     return `${month}/${day} ${hour}:${minute}:${second}`;
   }
   return `${month}/${day} ${hour}:${minute}`;
+}
+
+/**
+ * 异步加载组件 HTML 模板纯文本内容 (供 Vue 挂载)
+ * @param {string|URL} path 模板文件 URL，建议传 new URL("./x.html", import.meta.url)
+ * @returns {Promise<string>}
+ */
+export async function loadHtmlText(path) {
+  const res = await fetch(path, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`Failed to load template from ${path}`);
+  }
+  return await res.text();
 }

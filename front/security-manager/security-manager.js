@@ -3,14 +3,49 @@
 // ==========================================================================
 
 import { reactive, computed, watch, onMounted } from "vue";
-import { adminApi } from "../services/admin.js";
-import { auth, login, logout } from "../services/auth.js";
-import { showToast } from "../common/toast.js";
-import { formatDateTime } from "../common/datetime.js";
-import { copyTextWithToast } from "../common/clipboard.js";
-import { loadHtmlText } from "../common/template.js";
+import { api, auth, login, logout } from "../api.js";
+import { formatDateTime, loadHtmlText } from "../common/utils.js";
 
 const template = await loadHtmlText(new URL("./security-manager.html", import.meta.url));
+
+/**
+ * 显示浮动提示通知
+ * @param {string} message 提示信息文本
+ * @param {'success'|'error'} [type='success'] 提示类型
+ * @param {number} [duration=3000] 显示时长（毫秒）
+ */
+function showToast(message, type = "success", duration = 3000) {
+  const existing = document.querySelector(".sec-toast");
+  if (existing) existing.remove();
+
+  const toast = document.createElement("div");
+  toast.className = `sec-toast ${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.transition = "opacity 0.25s ease, transform 0.25s ease";
+    toast.style.opacity = "0";
+    toast.style.transform = "translateY(-6px)";
+    setTimeout(() => toast.remove(), 250);
+  }, duration);
+}
+
+async function copyToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+  } else {
+    const input = document.createElement("textarea");
+    input.value = text;
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    document.body.appendChild(input);
+    input.focus();
+    input.select();
+    document.execCommand("copy");
+    input.remove();
+  }
+}
 
 export const SecurityView = {
   name: "SecurityView",
@@ -64,12 +99,17 @@ export const SecurityView = {
       emit("back-to-dashboard");
     }
 
-    function copyIp(ip) {
-      copyTextWithToast(ip, `已复制 IP: ${ip}`);
+    async function copyIp(ip) {
+      try {
+        await copyToClipboard(ip);
+        showToast(`已复制 IP: ${ip}`, "success");
+      } catch {
+        showToast("复制失败", "error");
+      }
     }
 
     // ------------------------------------------------------------------------
-    // 后端 API 请求交互 (统一使用 adminApi 客户端)
+    // 后端 API 请求交互 (统一使用 api.admin 客户端)
     // ------------------------------------------------------------------------
     async function handleAuthSubmit() {
       const pwd = state.authPasswordInput.trim();
@@ -77,7 +117,7 @@ export const SecurityView = {
       state.authSubmitting = true;
       state.authError = "";
       try {
-        await adminApi.verify(pwd);
+        await api.admin.verify(pwd);
         login(pwd);
         state.authPasswordInput = "";
         showToast("解锁成功，已进入控制台", "success");
@@ -91,7 +131,7 @@ export const SecurityView = {
 
     async function fetchStatus() {
       try {
-        const data = await adminApi.getStatus();
+        const data = await api.admin.getStatus();
         Object.assign(state, data);
       } catch (error) {
         showToast(error.message, "error");
@@ -101,7 +141,7 @@ export const SecurityView = {
     async function fetchIpStats(run = false) {
       state.statsLoading = true;
       try {
-        const data = await adminApi.getIpStats(run);
+        const data = await api.admin.getIpStats(run);
         if (data?.items) {
           state.ipStats = data;
           if (run) showToast("IP 频次统计分析完成", "success");
@@ -117,7 +157,7 @@ export const SecurityView = {
       const target = String(ip || "").trim();
       if (!target) return showToast("请输入需要封禁的 IP 地址", "error");
       try {
-        const res = await adminApi.banIp(target);
+        const res = await api.admin.banIp(target);
         if (res.status) Object.assign(state, res.status);
         showToast(`已成功封禁 IP: ${target}`, "success");
       } catch (error) {
@@ -136,7 +176,7 @@ export const SecurityView = {
       const target = String(ip || "").trim();
       if (!confirm(`确定要解封 IP: ${target} 吗？`)) return;
       try {
-        const res = await adminApi.unbanIp(target);
+        const res = await api.admin.unbanIp(target);
         if (res.status) Object.assign(state, res.status);
         showToast(`已成功解封 IP: ${target}`, "success");
       } catch (error) {
@@ -147,7 +187,7 @@ export const SecurityView = {
     async function unbanAll() {
       if (!confirm("⚠️ 确定要一键解封所有规则下的 IP 吗？该操作将清除所有当前的封禁拦截。")) return;
       try {
-        const res = await adminApi.unbanAll();
+        const res = await api.admin.unbanAll();
         if (res.status) Object.assign(state, res.status);
         showToast("已成功解封所有 IP", "success");
       } catch (error) {
