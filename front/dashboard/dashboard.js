@@ -8,7 +8,7 @@ import { formatDateTime } from "../common/datetime.js";
 import { loadHtmlText } from "../common/template.js";
 import { formatPlan, formatQuotaLabel, formatReset, percentClass } from "./format.js";
 
-const template = await loadHtmlText("/dashboard/dashboard.html");
+const template = await loadHtmlText(new URL("./dashboard.html", import.meta.url));
 
 export const DashboardView = {
   name: "DashboardView",

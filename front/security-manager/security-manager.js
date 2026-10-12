@@ -10,7 +10,7 @@ import { formatDateTime } from "../common/datetime.js";
 import { copyTextWithToast } from "../common/clipboard.js";
 import { loadHtmlText } from "../common/template.js";
 
-const template = await loadHtmlText("/security-manager/security-manager.html");
+const template = await loadHtmlText(new URL("./security-manager.html", import.meta.url));
 
 export const SecurityView = {
   name: "SecurityView",
