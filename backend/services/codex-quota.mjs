@@ -121,7 +121,7 @@ function parseQuota(payload) {
     const resetAfter = w.reset_after_seconds ?? w.resetAfterSeconds;
     const resetAt = resetSec ? Number(resetSec) * 1000 : (resetAfter ? Date.now() + Number(resetAfter) * 1000 : null);
 
-    return { id, label, usedPercent: used, remainingPercent: remaining, resetAt, exhausted: used >= 100 };
+    return { id, label, usedPercent: used, remainingPercent: remaining, level: quotaLevel(remaining), resetAt, exhausted: used >= 100 };
   };
 
   if (fiveHour) windows.push(buildWindow("5h", "5h", fiveHour));
@@ -165,6 +165,16 @@ async function callWhamUsage(account) {
 }
 
 // 6. 状态推导辅助
+// 剩余额度分级阈值：窗口 level 与账户 dashboardStatus 共用，前端直接使用 level，不另行判断
+const DANGER_BELOW = 15;
+const LOW_BELOW = 35;
+
+function quotaLevel(remainingPercent) {
+  if (remainingPercent < DANGER_BELOW) return "danger";
+  if (remainingPercent < LOW_BELOW) return "low";
+  return "ready";
+}
+
 function deriveStatus(account, quota, error) {
   if (error) return "error";
   if (account.disabled || account.unavailable) return "disabled";
@@ -172,8 +182,7 @@ function deriveStatus(account, quota, error) {
   if (!remList.length) return "unknown";
   const lowest = Math.min(...remList);
   if (lowest <= 0) return "exhausted";
-  if (lowest < 15) return "low";
-  return "ready";
+  return quotaLevel(lowest);
 }
 
 // 7. 导出接口：刷新并聚合汇总所有额度
@@ -204,7 +213,7 @@ export async function refreshQuotas() {
     })
   );
 
-  const summary = { total: reports.length, ready: 0, low: 0, exhausted: 0, error: 0 };
+  const summary = { total: reports.length, ready: 0, low: 0, danger: 0, exhausted: 0, error: 0 };
   for (const r of reports) {
     if (summary[r.dashboardStatus] !== undefined) {
       summary[r.dashboardStatus]++;

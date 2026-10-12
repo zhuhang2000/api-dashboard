@@ -1,7 +1,7 @@
 <div class="dashboard-section">
   <section class="topbar">
     <div>
-      <h1>Codex 额度 <span class="title-badge">{{ state.summary.total || 0 }}</span></h1>
+      <h1>Codex 额度 <span class="title-badge">{{ state.summary.total }}</span></h1>
       <div class="subline">{{ formatLastRefresh }}</div>
     </div>
     <div class="top-actions">
@@ -28,19 +28,19 @@
   <section class="summary-grid" aria-label="账户汇总">
     <div class="summary-item">
       <span>账户</span>
-      <strong>{{ state.summary.total || 0 }}</strong>
+      <strong>{{ state.summary.total }}</strong>
     </div>
     <div class="summary-item">
       <span>可用</span>
-      <strong>{{ state.summary.ready || 0 }}</strong>
+      <strong>{{ state.summary.ready }}</strong>
     </div>
     <div class="summary-item">
       <span>低额度</span>
-      <strong>{{ state.summary.low || 0 }}</strong>
+      <strong>{{ state.summary.low + state.summary.danger }}</strong>
     </div>
     <div class="summary-item">
       <span>异常</span>
-      <strong>{{ (state.summary.error || 0) + (state.summary.exhausted || 0) }}</strong>
+      <strong>{{ state.summary.error + state.summary.exhausted }}</strong>
     </div>
   </section>
 
@@ -57,45 +57,34 @@
       v-for="(account, idx) in state.accounts"
       :key="idx"
       class="account-card"
-      :class="account.dashboardStatus || 'unknown'"
+      :class="account.dashboardStatus"
     >
       <header class="account-header">
         <div class="account-title">
           <span class="status-dot"></span>
           <h2>{{ account.provider }}</h2>
         </div>
-        <span
-          class="plan-pill"
-          :class="{ free: (account.planType || '').toLowerCase() === 'free' }"
-        >
-          套餐 {{ formatPlan(account.planType) }}
-        </span>
+        <span class="plan-pill" :class="{ free: account.isFree }">套餐 {{ account.planText }}</span>
       </header>
 
       <div class="quota-stack">
-        <template v-if="account.quota && account.quota.windows && account.quota.windows.length">
+        <template v-if="account.windows.length">
           <div
-            v-for="w in account.quota.windows"
+            v-for="w in account.windows"
             :key="w.id"
             class="quota-row"
           >
             <div class="quota-heading">
               <div class="quota-label">
-                <span>{{ formatQuotaLabel(w.label) }}</span>
+                <span>{{ w.label }}</span>
               </div>
               <div class="quota-value-group">
-                <span class="quota-percent" :class="percentClass(w.remainingPercent)">
-                  {{ Math.round(w.remainingPercent ?? 0) }}%
-                </span>
-                <span class="quota-reset">{{ formatDateTime(w.resetAt) }}</span>
+                <span class="quota-percent" :class="w.level">{{ w.percent }}%</span>
+                <span class="quota-reset">{{ w.resetText }}</span>
               </div>
             </div>
             <div class="progress-track">
-              <div
-                class="progress-fill"
-                :class="percentClass(w.remainingPercent)"
-                :style="{ width: `${Math.max(0, Math.min(100, Math.round(w.remainingPercent ?? 0)))}%` }"
-              ></div>
+              <div class="progress-fill" :class="w.level" :style="{ width: `${w.percent}%` }"></div>
             </div>
           </div>
         </template>

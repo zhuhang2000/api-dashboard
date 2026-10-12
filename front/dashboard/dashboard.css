@@ -84,6 +84,7 @@
   background: var(--amber);
 }
 
+.account-card.danger .status-dot,
 .account-card.exhausted .status-dot,
 .account-card.error .status-dot {
   border-color: var(--red);
