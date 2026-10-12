@@ -3,7 +3,7 @@
 // ==========================================================================
 
 import { reactive, computed, onMounted } from "vue";
-import { api } from "../api.js";
+import { quotasApi } from "../services/quotas.js";
 import {
   formatDateTime,
   formatPlan,
@@ -45,7 +45,7 @@ export const DashboardView = {
       }
 
       try {
-        const payload = await api.quotas.refresh();
+        const payload = await quotasApi.refresh();
         state.accounts = payload.accounts || [];
         state.summary = payload.summary || { total: 0, ready: 0, low: 0, exhausted: 0, error: 0 };
         state.refreshedAt = payload.refreshedAt || new Date().toISOString();

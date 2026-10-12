@@ -25,15 +25,6 @@ export function showToast(message, type = "success", duration = 3000) {
   }, duration);
 }
 
-const TOKEN_STORAGE_KEY = "dashboard_admin_token";
-
-/**
- * 管理员 Bearer 凭证存储工具
- */
-export const getAdminToken = () => sessionStorage.getItem(TOKEN_STORAGE_KEY) || "";
-export const setAdminToken = (token) => sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
-export const clearAdminToken = () => sessionStorage.removeItem(TOKEN_STORAGE_KEY);
-
 /**
  * 格式化日期时间
  * @param {string|number|Date} value 输入的时间值
@@ -79,38 +70,6 @@ export async function loadHtmlText(path) {
 export async function loadHtmlTemplate(path) {
   const html = await loadHtmlText(path);
   return new DOMParser().parseFromString(html, "text/html");
-}
-
-/**
- * 统一的 JSON API 请求封装
- * @param {string} path API 路由路径
- * @param {object} [options] 请求配置
- * @param {string} [options.token] 可选的 Bearer Token
- * @returns {Promise<any>}
- */
-export async function requestJson(path, options = {}) {
-  const { token, headers = {}, ...restOptions } = options;
-  const requestHeaders = {
-    "Content-Type": "application/json",
-    ...headers
-  };
-  if (token) {
-    requestHeaders["Authorization"] = `Bearer ${token}`;
-  }
-
-  const response = await fetch(path, {
-    ...restOptions,
-    headers: requestHeaders
-  });
-
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(payload.error || `HTTP ${response.status}`);
-    error.code = payload.code;
-    error.status = response.status;
-    throw error;
-  }
-  return payload;
 }
 
 /**

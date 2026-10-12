@@ -2,16 +2,14 @@
 // SecurityView Component (front/security-manager/security-manager.js)
 // ==========================================================================
 
-import { reactive, computed, onMounted } from "vue";
-import { api, onAuthExpired } from "../api.js";
+import { reactive, computed, watch, onMounted } from "vue";
+import { adminApi } from "../services/admin.js";
+import { auth, login, logout } from "../services/auth.js";
 import {
   showToast,
   formatDateTime,
   formatStatsSpan,
   copyTextWithToast,
-  getAdminToken,
-  setAdminToken,
-  clearAdminToken,
   loadHtmlText
 } from "../common/utils.js";
 
@@ -23,8 +21,6 @@ export const SecurityView = {
   emits: ["back-to-dashboard"],
   setup(props, { emit }) {
     const state = reactive({
-      token: getAdminToken(),
-      showAuthModal: !getAdminToken(),
       authPasswordInput: "",
       authSubmitting: false,
       authError: "",
@@ -50,11 +46,10 @@ export const SecurityView = {
 
     const statsSpanText = computed(() => formatStatsSpan(state.ipStats));
 
-    // 全局 Token 401 拦截处理
-    onAuthExpired((err) => {
-      state.token = "";
-      state.showAuthModal = true;
-      state.authError = err?.message || "登录已过期，请重新验证";
+    // 凭证被动失效（401）：auth.token 已被清空，弹窗随之出现，这里补充提示
+    watch(() => auth.expiredReason, (reason) => {
+      if (!reason) return;
+      state.authError = reason;
       showToast("登录凭证已失效", "error");
     });
 
@@ -62,17 +57,8 @@ export const SecurityView = {
       emit("back-to-dashboard");
     }
 
-    function handleModalCancel() {
-      if (!state.token) {
-        emit("back-to-dashboard");
-      } else {
-        state.showAuthModal = false;
-      }
-    }
-
     function handleLock() {
-      state.token = "";
-      clearAdminToken();
+      logout();
       showToast("控制台已锁定", "success");
       emit("back-to-dashboard");
     }
@@ -82,7 +68,7 @@ export const SecurityView = {
     }
 
     // ------------------------------------------------------------------------
-    // 后端 API 请求交互 (统一使用 api.admin 客户端)
+    // 后端 API 请求交互 (统一使用 adminApi 客户端)
     // ------------------------------------------------------------------------
     async function handleAuthSubmit() {
       const pwd = state.authPasswordInput.trim();
@@ -90,10 +76,8 @@ export const SecurityView = {
       state.authSubmitting = true;
       state.authError = "";
       try {
-        await api.admin.verify(pwd);
-        state.token = pwd;
-        setAdminToken(pwd);
-        state.showAuthModal = false;
+        await adminApi.verify(pwd);
+        login(pwd);
         state.authPasswordInput = "";
         showToast("解锁成功，已进入控制台", "success");
         initData();
@@ -106,7 +90,7 @@ export const SecurityView = {
 
     async function fetchStatus() {
       try {
-        const data = await api.admin.getStatus();
+        const data = await adminApi.getStatus();
         Object.assign(state, data);
       } catch (error) {
         showToast(error.message, "error");
@@ -116,7 +100,7 @@ export const SecurityView = {
     async function fetchIpStats(run = false) {
       state.statsLoading = true;
       try {
-        const data = await api.admin.getIpStats(run);
+        const data = await adminApi.getIpStats(run);
         if (data?.items) {
           state.ipStats = data;
           if (run) showToast("IP 频次统计分析完成", "success");
@@ -132,7 +116,7 @@ export const SecurityView = {
       const target = String(ip || "").trim();
       if (!target) return showToast("请输入需要封禁的 IP 地址", "error");
       try {
-        const res = await api.admin.banIp(target);
+        const res = await adminApi.banIp(target);
         if (res.status) Object.assign(state, res.status);
         showToast(`已成功封禁 IP: ${target}`, "success");
       } catch (error) {
@@ -151,7 +135,7 @@ export const SecurityView = {
       const target = String(ip || "").trim();
       if (!confirm(`确定要解封 IP: ${target} 吗？`)) return;
       try {
-        const res = await api.admin.unbanIp(target);
+        const res = await adminApi.unbanIp(target);
         if (res.status) Object.assign(state, res.status);
         showToast(`已成功解封 IP: ${target}`, "success");
       } catch (error) {
@@ -162,7 +146,7 @@ export const SecurityView = {
     async function unbanAll() {
       if (!confirm("⚠️ 确定要一键解封所有规则下的 IP 吗？该操作将清除所有当前的封禁拦截。")) return;
       try {
-        const res = await api.admin.unbanAll();
+        const res = await adminApi.unbanAll();
         if (res.status) Object.assign(state, res.status);
         showToast("已成功解封所有 IP", "success");
       } catch (error) {
@@ -171,7 +155,7 @@ export const SecurityView = {
     }
 
     function initData() {
-      if (state.token) {
+      if (auth.token) {
         fetchStatus();
         fetchIpStats(false);
       }
@@ -183,11 +167,11 @@ export const SecurityView = {
 
     return {
       state,
+      auth,
       isIpBanned,
       formatSyncTime,
       formatStatsSpan: statsSpanText,
       handleBack,
-      handleModalCancel,
       handleLock,
       handleAuthSubmit,
       fetchStatus,

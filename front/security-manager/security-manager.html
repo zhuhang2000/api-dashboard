@@ -1,8 +1,8 @@
 <div class="security-wrapper">
   <!-- 密码验证弹窗 -->
-  <div v-if="state.showAuthModal" class="sec-modal-backdrop" id="sec-auth-modal" @click.self="handleModalCancel">
+  <div v-if="!auth.token" class="sec-modal-backdrop" id="sec-auth-modal" @click.self="handleBack">
     <div class="sec-modal-card">
-      <button class="modal-close-btn" type="button" title="关闭弹窗" @click="handleModalCancel">
+      <button class="modal-close-btn" type="button" title="关闭弹窗" @click="handleBack">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"></line>
           <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -30,7 +30,7 @@
         />
         <div v-if="state.authError" class="lock-error" style="display: block;">{{ state.authError }}</div>
         <div class="modal-actions">
-          <button type="button" class="card-btn modal-cancel-btn" @click="handleModalCancel">取消</button>
+          <button type="button" class="card-btn modal-cancel-btn" @click="handleBack">取消</button>
           <button type="submit" class="primary modal-submit-btn" :disabled="state.authSubmitting">
             {{ state.authSubmitting ? "验证中..." : "解锁并进入" }}
           </button>
@@ -40,7 +40,7 @@
   </div>
 
   <!-- 控制面板主界面 (登录后展示) -->
-  <div v-if="state.token" class="security-page">
+  <div v-if="auth.token" class="security-page">
     <div class="topbar">
       <div class="security-title-group">
         <button class="card-btn back-btn" title="返回 Codex 额度看板" @click="handleBack">
