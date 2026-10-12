@@ -4,7 +4,7 @@
 
 import { reactive, computed, onMounted } from "vue";
 import { api } from "../api.js";
-import { formatDateTime, loadHtmlText } from "../common/utils.js";
+import { formatDateTime, loadHtmlText, showToast } from "../common/utils.js";
 
 const template = await loadHtmlText(new URL("./dashboard.html", import.meta.url));
 
@@ -39,9 +39,7 @@ export const DashboardView = {
       accounts: [],
       summary: { total: 0, ready: 0, low: 0, danger: 0, exhausted: 0, error: 0 },
       refreshedAt: null,
-      refreshing: false,
-      statusMessage: "",
-      statusIsError: false
+      refreshing: false
     });
 
     const formatLastRefresh = computed(() => {
@@ -52,29 +50,30 @@ export const DashboardView = {
       emit("open-security");
     }
 
-    async function refreshQuotas(options = {}) {
+    // 拉取额度数据；失败时抛出，由调用方提示
+    async function loadQuotas() {
       state.refreshing = true;
-      if (!options.silent) {
-        state.statusMessage = "正在刷新额度...";
-        state.statusIsError = false;
-      }
-
       try {
         const payload = await api.quotas.refresh();
         state.accounts = payload.accounts.map(toAccountView);
         state.summary = payload.summary;
         state.refreshedAt = payload.refreshedAt;
-        if (!options.silent) state.statusMessage = "刷新完成";
-      } catch (error) {
-        state.statusMessage = error.message || "刷新失败";
-        state.statusIsError = true;
       } finally {
         state.refreshing = false;
       }
     }
 
+    async function refreshQuotas() {
+      try {
+        await loadQuotas();
+        showToast("刷新完成", "success");
+      } catch (error) {
+        showToast(error.message, "error");
+      }
+    }
+
     onMounted(() => {
-      refreshQuotas();
+      loadQuotas().catch((error) => showToast(error.message, "error"));
     });
 
     return {

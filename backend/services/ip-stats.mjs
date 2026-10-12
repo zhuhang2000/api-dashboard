@@ -70,13 +70,7 @@ function parseResult(text) {
         const count = Number(parts[2].replace(/,/g, ""));
         const percentage = parts[3];
         if (!isNaN(rank) && ip) {
-          items.push({
-            rank,
-            ip,
-            count,
-            percentage,
-            isV6: ip.includes(":")
-          });
+          items.push({ rank, ip, count, percentage });
         }
       }
     }

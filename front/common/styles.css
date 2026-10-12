@@ -1,16 +1,26 @@
+/* ==========================================================================
+   全局样式：设计变量、基础样式与共享组件（顶栏、按钮、图标、汇总卡片、Toast）
+   约定：颜色、字体、阴影只在 :root 中定义，其他样式一律引用变量
+   ========================================================================== */
+
 :root {
   color-scheme: light;
 
-  /* 基础背景与表面色 */
+  /* 背景与表面 */
   --bg: #fafafa;
   --surface: #ffffff;
   --surface-subtle: #f9fafb;
   --surface-hover: #f3f4f6;
+  --backdrop: rgba(17, 24, 39, 0.45);
 
-  /* 文本色阶 */
+  /* 文本（由深到浅） */
   --text-strong: #111827;
   --text: #1f2937;
+  --text-secondary: #374151;
+  --text-tertiary: #4b5563;
   --muted: #6b7280;
+  --text-faint: #9ca3af;
+  --text-inverse: #ffffff;
 
   /* 边框 */
   --border: #e5e7eb;
@@ -19,18 +29,52 @@
   /* 品牌主色 */
   --primary: #4f46e5;
   --primary-hover: #4338ca;
+  --primary-light: #eef2ff;
+  --primary-ring: rgba(79, 70, 229, 0.12);
 
-  /* 状态反馈色与轨道 */
+  /* 状态色：基础色用于文字与图标，-light / -lighter 用于浅色底，-border 用于描边 */
   --track: #f3f4f6;
   --green: #10b981;
   --green-dark: #065f46;
   --red: #ef4444;
+  --red-strong: #dc2626;
   --red-dark: #991b1b;
+  --red-light: #fee2e2;
+  --red-lighter: #fef2f2;
+  --red-border: #fca5a5;
   --amber: #f59e0b;
+  --amber-dark: #b45309;
+  --amber-light: #fef3c7;
+  --amber-lighter: #fffbeb;
+  --amber-border: #fde68a;
+  --amber-border-strong: #fcd34d;
   --blue: #3b82f6;
+  --focus-ring: rgba(59, 130, 246, 0.15);
+
+  /* 错误提示框（额度卡片与登录弹窗共用） */
+  --error-bg: rgba(239, 68, 68, 0.08);
+  --error-border: rgba(239, 68, 68, 0.2);
+
+  /* 排名徽标（第 1 名使用 amber）与 IP 类型徽标 */
+  --silver: #475569;
+  --silver-light: #f1f5f9;
+  --silver-border: #cbd5e1;
+  --bronze: #c2410c;
+  --bronze-light: #ffedd5;
+  --bronze-border: #fed7aa;
+  --ipv4: #1e40af;
+  --ipv4-light: #dbeafe;
+  --ipv6: #5b21b6;
+  --ipv6-light: #ede9fe;
+
+  /* 字体 */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   /* 阴影 */
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-toast: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
 }
 
 * {
@@ -72,7 +116,7 @@ body {
   align-items: center;
   justify-content: center;
   background-color: var(--border);
-  color: #4b5563;
+  color: var(--text-tertiary);
   font-size: 12px;
   font-weight: 600;
   width: 20px;
@@ -96,17 +140,20 @@ body {
 
 /* ==========================================================================
    Shared Button Components
+   <button> 本身即默认样式；外观变体 .btn-primary / .btn-danger / .btn-warning / .btn-danger-hover，
+   尺寸 .btn-sm，纯图标按钮 .btn-icon；按钮的位置与宽度由所在容器的样式决定
    ========================================================================== */
 
 button {
   border: 1px solid var(--border);
   background: var(--surface);
-  color: #374151;
+  color: var(--text-secondary);
   border-radius: 999px;
   min-height: 34px;
   padding: 0 16px;
   font-size: 13px;
   font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -126,44 +173,104 @@ button:disabled {
 
 button:focus-visible {
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
-.icon-button svg {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.primary {
+.btn-primary {
   background: var(--primary);
-  color: white;
+  color: var(--text-inverse);
   border-color: var(--primary);
 }
 
-.primary:hover:not(:disabled) {
+.btn-primary:hover:not(:disabled) {
   background: var(--primary-hover);
   border-color: var(--primary-hover);
 }
 
-.card-btn {
+.btn-danger {
+  background: var(--red);
+  color: var(--text-inverse);
+  border-color: var(--red);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--red-strong);
+  border-color: var(--red-strong);
+}
+
+.btn-warning {
+  background: var(--amber-lighter);
+  color: var(--amber-dark);
+  border-color: var(--amber-border);
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: var(--amber-light);
+  border-color: var(--amber-border-strong);
+}
+
+/* 默认中性，悬停时呈现危险色 */
+.btn-danger-hover:hover:not(:disabled) {
+  border-color: var(--red);
+  color: var(--red);
+  background: var(--red-lighter);
+}
+
+.btn-sm {
   font-size: 12px;
   padding: 5px 12px;
   min-height: 28px;
   gap: 4px;
 }
 
-.card-btn:disabled {
+.btn-sm:disabled {
   opacity: 0.45;
   background: var(--surface-subtle);
 }
 
-.card-btn svg {
+.btn-sm svg {
   color: var(--muted);
+}
+
+.btn-icon {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  justify-content: center;
+}
+
+.btn-icon:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-strong);
+}
+
+.btn-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ==========================================================================
+   Icons
+   内联 SVG 统一为描边风格，只写 viewBox；尺寸由所在位置决定（按钮内默认 14px）
+   ========================================================================== */
+
+svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+
+button svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* ==========================================================================
@@ -182,7 +289,7 @@ button:focus-visible {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px 16px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.01);
+  box-shadow: var(--shadow);
 }
 
 .summary-item span {
@@ -199,6 +306,40 @@ button:focus-visible {
   font-weight: 600;
   line-height: 1;
   color: var(--text-strong);
+}
+
+/* ==========================================================================
+   Toast（由 common/utils.js 的 showToast 插入 body）
+   ========================================================================== */
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  color: var(--text-inverse);
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: var(--shadow-toast);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.toast.success {
+  background: var(--green-dark);
+}
+
+.toast.error {
+  background: var(--red-dark);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ==========================================================================

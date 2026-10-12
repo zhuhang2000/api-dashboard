@@ -1,26 +1,21 @@
-<div class="dashboard-section">
+<div class="dashboard-view">
   <section class="topbar">
     <div>
       <h1>Codex 额度 <span class="title-badge">{{ state.summary.total }}</span></h1>
       <div class="subline">{{ formatLastRefresh }}</div>
     </div>
     <div class="top-actions">
-      <button class="icon-button" type="button" title="打开安全控制台" @click="openSecurity">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <button type="button" title="打开安全控制台" @click="openSecurity">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
         </svg>
         <span>控制台</span>
       </button>
-      <button
-        class="icon-button primary"
-        type="button"
-        title="刷新额度"
-        aria-label="刷新额度"
-        :disabled="state.refreshing"
-        @click="refreshQuotas"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14.9 4M4 12A8 8 0 0 1 18.9 8M19 4v4h-4M5 20v-4h4"/></svg>
-        <span>刷新</span>
+      <button class="btn-primary" type="button" title="刷新额度" :disabled="state.refreshing" @click="refreshQuotas">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M20 12a8 8 0 0 1-14.9 4M4 12A8 8 0 0 1 18.9 8M19 4v4h-4M5 20v-4h4"></path>
+        </svg>
+        <span>{{ state.refreshing ? "刷新中..." : "刷新" }}</span>
       </button>
     </div>
   </section>
@@ -44,18 +39,14 @@
     </div>
   </section>
 
-  <div v-if="state.statusMessage" class="status-line" :class="{ error: state.statusIsError }">
-    {{ state.statusMessage }}
-  </div>
-
   <section class="cards-grid" aria-live="polite">
     <div v-if="!state.accounts.length && !state.refreshing" class="empty-state">
       暂无 Codex OAuth 账号
     </div>
 
     <article
-      v-for="(account, idx) in state.accounts"
-      :key="idx"
+      v-for="account in state.accounts"
+      :key="account.id"
       class="account-card"
       :class="account.dashboardStatus"
     >
@@ -69,15 +60,9 @@
 
       <div class="quota-stack">
         <template v-if="account.windows.length">
-          <div
-            v-for="w in account.windows"
-            :key="w.id"
-            class="quota-row"
-          >
+          <div v-for="w in account.windows" :key="w.id" class="quota-row">
             <div class="quota-heading">
-              <div class="quota-label">
-                <span>{{ w.label }}</span>
-              </div>
+              <span class="quota-label">{{ w.label }}</span>
               <div class="quota-value-group">
                 <span class="quota-percent" :class="w.level">{{ w.percent }}%</span>
                 <span class="quota-reset">{{ w.resetText }}</span>
@@ -94,9 +79,9 @@
       <div v-if="account.dashboardStatus === 'error'" class="error-box">额度读取失败</div>
 
       <div class="card-actions">
-        <button class="card-btn refresh-btn" type="button" :disabled="state.refreshing" @click="refreshQuotas">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20 12a8 8 0 0 1-14.9 4M4 12A8 8 0 0 1 18.9 8M19 4v4h-4M5 20v-4h4"/>
+        <button class="btn-sm" type="button" :disabled="state.refreshing" @click="refreshQuotas">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 12a8 8 0 0 1-14.9 4M4 12A8 8 0 0 1 18.9 8M19 4v4h-4M5 20v-4h4"></path>
           </svg>
           <span>刷新额度</span>
         </button>

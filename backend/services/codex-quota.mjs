@@ -174,13 +174,14 @@ export async function refreshQuotas() {
       try {
         const quota = await callWhamUsage(account);
         return {
+          id: account.authIndex,
           planType: quota.planType || account.planType,
           dashboardStatus: deriveStatus(account, quota.windows),
           windows: quota.windows
         };
       } catch {
         // 单个账号查询失败不影响其他账号，该账号标记为 error
-        return { planType: account.planType, dashboardStatus: "error", windows: [] };
+        return { id: account.authIndex, planType: account.planType, dashboardStatus: "error", windows: [] };
       }
     })
   );

@@ -55,19 +55,19 @@
 └── front/                            # 前端（Vue 3 原生 ESM，免构建）
     ├── index.html                    # 宿主页面（importmap + 样式入口）
     ├── main.js                       # 根组件与 hash 视图切换
-    ├── api.js                        # 数据层：全部后端接口、Bearer 注入、401 处理与认证状态单例
+    ├── api.js                        # 数据层：全部后端接口（分组与后端服务对应）、Bearer 注入、401 处理与认证状态单例
     ├── common/                       # 共享层：仅放被多个视图共同使用的内容
-    │   ├── styles.css                # 全局样式与设计令牌
-    │   ├── utils.js                  # 时间格式化、组件模板加载
+    │   ├── styles.css                # 全局样式：设计变量（颜色只在此定义）、按钮、图标、Toast 等共享组件
+    │   ├── utils.js                  # 时间格式化、组件模板加载、Toast 提示
     │   └── vendor/                   # 离线 Vue 3 ESM 运行时
     ├── dashboard/                    # Codex 额度看板视图
     │   ├── dashboard.html            # 看板模板
-    │   ├── dashboard.js              # DashboardView 组件（含额度格式化）
-    │   └── dashboard.css             # 账户卡片与进度条样式
+    │   ├── dashboard.js              # DashboardView 组件（含接口数据转换）
+    │   └── dashboard.css             # 看板样式（限定在 .dashboard-view 内）
     └── security-manager/             # Fail2ban 安全控制台视图
         ├── security-manager.html     # 控制台与密码弹窗模板
-        ├── security-manager.js       # SecurityView 组件（含 Toast、剪贴板）
-        └── security-manager.css      # 弹窗、卡片、表格、排行榜与 Toast 样式
+        ├── security-manager.js       # SecurityView 组件（含剪贴板）
+        └── security-manager.css      # 控制台样式（限定在 .security-view 内）
 ```
 
 ---
@@ -161,3 +161,30 @@ WantedBy=multi-user.target
 systemctl daemon-reload
 systemctl restart api-dashboard.service
 ```
+
+---
+
+## 6. 开发约定
+
+### 6.1 通用
+- 只有一处使用的函数和样式写在使用它的文件里；被两个及以上模块使用时，才提取到公共位置（后端 `http.mjs`，前端 `common/`）；
+- 兜底只在外部数据进入系统时做一次（CPA 响应、命令输出、请求体），之后各层信任数据结构；
+- 用户可见的提示一律使用中文。
+
+### 6.2 后端
+- 接口集中登记在 `routes/api.mjs` 的路由表中；`/api/admin/*`（verify 除外）统一鉴权，handler 内不再处理；
+- handler 成功时直接返回数据（无数据返回 `null`），失败时 `throw httpError(状态码, 中文提示, 错误码)`；
+- 服务函数名不重复模块名（`fail2ban.ban()`，而不是 `banFail2banIp()`）；与部署环境相关的路径、名称放在 `config.mjs`。
+
+### 6.3 前端
+- 数据流：接口数据 → 拿到时转换（`toXxxView`）或 computed → 模板只读取字段，不在模板里做格式化和数据转换；
+- 命名：事件与操作函数用「动词 + 对象」（`banIp`、`submitLogin`），不用布尔参数切换行为；computed 显示文本用 `formatXxx`；
+- 反馈：失败一律用 toast 显示 `error.message`（中文提示由 `api.js` 统一生成）；用户主动操作成功时提示，自动加载成功不提示；
+- `api.js` 的分组与后端服务一一对应（`api.fail2ban.ban()` ↔ `fail2ban.ban()`）。
+
+### 6.4 样式
+- 颜色、字体、阴影只在 `common/styles.css` 的 `:root` 中定义，其他地方一律引用变量；
+- 视图样式整体嵌套在视图根类下（`.dashboard-view`、`.security-view`），类名不加视图前缀；
+- 按钮外观只用 `btn-*` 类（`btn-primary` / `btn-danger` / `btn-warning` / `btn-danger-hover` / `btn-sm` / `btn-icon`），位置与宽度由所在容器决定；
+- 图标只写 `viewBox`，描边与尺寸由 CSS 控制；模板中不写内联 `style`（数据驱动的宽度绑定除外）；
+- 样式使用原生 CSS 嵌套，浏览器需 Chrome 112 / Safari 16.5 / Firefox 117 及以上。

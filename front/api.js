@@ -29,31 +29,28 @@ export function logout(expiredReason = "") {
 }
 
 /**
- * 统一的 JSON API 请求封装
+ * 统一的 JSON API 请求封装：成功返回响应数据；失败抛出 Error，message 为可直接展示的中文提示
  * @param {string} path API 路由路径
- * @param {object} [options] 请求配置
- * @param {string} [options.token] 可选的 Bearer Token
+ * @param {object} [options] fetch 配置，额外支持 token（Bearer Token）
  * @returns {Promise<any>}
  */
-async function requestJson(path, options = {}) {
-  const { token, headers = {}, ...restOptions } = options;
-  const requestHeaders = {
-    "Content-Type": "application/json",
-    ...headers
-  };
+async function requestJson(path, { token, ...options } = {}) {
+  const headers = { "Content-Type": "application/json" };
   if (token) {
-    requestHeaders["Authorization"] = `Bearer ${token}`;
+    headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(path, {
-    ...restOptions,
-    headers: requestHeaders
-  });
+  let response;
+  try {
+    response = await fetch(path, { ...options, headers });
+  } catch {
+    throw new Error("网络连接失败，请检查网络后重试");
+  }
 
-  const payload = await response.json().catch(() => ({}));
+  const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    const error = new Error(payload.error || `HTTP ${response.status}`);
-    error.code = payload.code;
+    const error = new Error(payload?.error || `请求失败（HTTP ${response.status}）`);
+    error.code = payload?.code;
     error.status = response.status;
     throw error;
   }
@@ -68,50 +65,45 @@ async function authRequest(path, options = {}) {
     return await requestJson(path, { token: auth.token, ...options });
   } catch (error) {
     if (error.code === "TOKEN_EXPIRED" || error.status === 401) {
-      logout(error.message || "登录已过期，请重新验证");
+      logout(error.message);
     }
     throw error;
   }
 }
 
 /**
- * 统一后端 API 客户端
+ * 统一后端 API 客户端：分组与后端服务一一对应（quotas / admin / fail2ban / ipStats）
  */
 export const api = {
-  // Codex 额度接口
   quotas: {
     refresh() {
       return requestJson("/api/quotas/refresh", { method: "POST" });
     }
   },
 
-  // 安全管理与 Fail2ban 接口
   admin: {
     verify(password) {
       return requestJson("/api/admin/verify", {
         method: "POST",
         body: JSON.stringify({ password })
       });
-    },
+    }
+  },
 
-    getStatus() {
+  // 写操作返回最新状态，结构与 status() 一致
+  fail2ban: {
+    status() {
       return authRequest("/api/admin/fail2ban/status");
     },
 
-    getIpStats(run = false) {
-      const path = run ? "/api/admin/ip-stats/run" : "/api/admin/ip-stats/latest";
-      const method = run ? "POST" : "GET";
-      return authRequest(path, { method });
-    },
-
-    banIp(ip) {
+    ban(ip) {
       return authRequest("/api/admin/fail2ban/ban", {
         method: "POST",
         body: JSON.stringify({ ip })
       });
     },
 
-    unbanIp(ip) {
+    unban(ip) {
       return authRequest("/api/admin/fail2ban/unban", {
         method: "POST",
         body: JSON.stringify({ ip })
@@ -119,9 +111,18 @@ export const api = {
     },
 
     unbanAll() {
-      return authRequest("/api/admin/fail2ban/unban-all", {
-        method: "POST"
-      });
+      return authRequest("/api/admin/fail2ban/unban-all", { method: "POST" });
+    }
+  },
+
+  // 从未运行过统计时 latest() 返回 null
+  ipStats: {
+    latest() {
+      return authRequest("/api/admin/ip-stats/latest");
+    },
+
+    run() {
+      return authRequest("/api/admin/ip-stats/run", { method: "POST" });
     }
   }
 };
