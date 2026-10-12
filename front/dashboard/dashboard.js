@@ -21,10 +21,6 @@ function formatQuotaLabel(label) {
   return label || "";
 }
 
-function formatReset(resetAt) {
-  return resetAt ? formatDateTime(new Date(resetAt)) : "-";
-}
-
 // 剩余百分比的风险样式等级
 function percentClass(value) {
   const num = Math.round(value ?? 0);
@@ -64,9 +60,9 @@ export const DashboardView = {
 
       try {
         const payload = await api.quotas.refresh();
-        state.accounts = payload.accounts || [];
-        state.summary = payload.summary || { total: 0, ready: 0, low: 0, exhausted: 0, error: 0 };
-        state.refreshedAt = payload.refreshedAt || new Date().toISOString();
+        state.accounts = payload.accounts;
+        state.summary = payload.summary;
+        state.refreshedAt = payload.refreshedAt;
         if (!options.silent) state.statusMessage = "刷新完成";
       } catch (error) {
         state.statusMessage = error.message || "刷新失败";
@@ -85,7 +81,7 @@ export const DashboardView = {
       formatLastRefresh,
       formatPlan,
       formatQuotaLabel,
-      formatReset,
+      formatDateTime,
       percentClass,
       openSecurity,
       refreshQuotas
