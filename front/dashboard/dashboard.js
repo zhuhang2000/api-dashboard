@@ -4,14 +4,9 @@
 
 import { reactive, computed, onMounted } from "vue";
 import { quotasApi } from "../services/quotas.js";
-import {
-  formatDateTime,
-  formatPlan,
-  formatLabel,
-  formatReset,
-  percentClass,
-  loadHtmlText
-} from "../common/utils.js";
+import { formatDateTime } from "../common/datetime.js";
+import { loadHtmlText } from "../common/template.js";
+import { formatPlan, formatQuotaLabel, formatReset, percentClass } from "./format.js";
 
 const template = await loadHtmlText("/dashboard/dashboard.html");
 
@@ -66,7 +61,7 @@ export const DashboardView = {
       state,
       formatLastRefresh,
       formatPlan,
-      formatLabel,
+      formatQuotaLabel,
       formatReset,
       percentClass,
       openSecurity,

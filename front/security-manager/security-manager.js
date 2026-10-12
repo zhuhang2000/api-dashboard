@@ -5,13 +5,10 @@
 import { reactive, computed, watch, onMounted } from "vue";
 import { adminApi } from "../services/admin.js";
 import { auth, login, logout } from "../services/auth.js";
-import {
-  showToast,
-  formatDateTime,
-  formatStatsSpan,
-  copyTextWithToast,
-  loadHtmlText
-} from "../common/utils.js";
+import { showToast } from "../common/toast.js";
+import { formatDateTime } from "../common/datetime.js";
+import { copyTextWithToast } from "../common/clipboard.js";
+import { loadHtmlText } from "../common/template.js";
 
 const template = await loadHtmlText("/security-manager/security-manager.html");
 
@@ -44,7 +41,11 @@ export const SecurityView = {
         : "未同步";
     });
 
-    const statsSpanText = computed(() => formatStatsSpan(state.ipStats));
+    const statsSpanText = computed(() => {
+      const stats = state.ipStats;
+      if (!stats) return "未运行统计";
+      return `区间: ${stats.timeSpan || "全量日志"} | 更新于: ${formatDateTime(stats.updatedAt, { includeSeconds: true })}`;
+    });
 
     // 凭证被动失效（401）：auth.token 已被清空，弹窗随之出现，这里补充提示
     watch(() => auth.expiredReason, (reason) => {
